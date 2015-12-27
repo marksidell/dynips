@@ -82,7 +82,7 @@ where `<root>` is your assigned username and `-<extension>` is an optional dash
 followed by an alphanumeric extension that you can choose. For
 example, if your username is `sally`, you can register the simple
 hostname `sally`, but you can also create other names, such as
-`sally-laptop` and `sally-iphone`. Clients are free to make up as many names as
+`sally-laptop` and `sally-iphone`. Users are free to make up as many names as
 they need.
 
 By default, the service associates your current browser client IP with the
@@ -188,8 +188,8 @@ You can specify a `--key` or `--key-length`, but not both. If you specify
 neither, the program generates a 16-character random string and prints
 it.
 
-NOTE: The program stores a hash of the key, not the key itself, so you
-must record any key the program generates yourself.
+NOTE: The program stores a hash of the key, not the key itself, so it's
+your responsibility to record any key the program generates.
 
 **edit**
 
@@ -221,7 +221,7 @@ You can specify a user, IP address, or both.
     dynip unlock [--user=<user>|*] [--ip=<ip>|*]
 
 Unlock a user and/or IP address, to grant access to the service. The
-arguments are the same as for **lock*. For unlock,
+arguments are the same as for **lock**. For **unlock**,
 you can use the wildcard `*`, to unlock all currently locked users and/or IPs.
 
 **list**
@@ -237,7 +237,7 @@ List all registered hostnames, users, and user/IP locks.
 Expire all hostnames that have not been updated more recently than the
 specified number of seconds ago. If no `--max-age` argument is
 specified, the default maximum age is used. The default is 3600
-seconds, but you can change the default when you configure the
+seconds, but you can change it when you configure the
 service.
 
 ### Hostname Expiration
@@ -257,7 +257,7 @@ present to create a scheduled event is via the AWS console. To
 schedule the `dynips-expirer` do this:
 
 1. Install dynips
-2. In the AWS Console, find the `dynip-expirer` Lambda service and
+2. In the AWS Console, find the `dynips-expirer` Lambda service and
 click it.
 3. On the lambda's **Event sources** tab, click **Add event source**.
 4. On the **Add event source** dialog, select event source type
@@ -414,7 +414,7 @@ then define this CNAME:
 
     dynips.mydomain.com CNAME 12345678.execute-api.us-east-1.amazonaws.com 
 
-The URL clients will use to access the service is:
+After you define the CNAME, the URL clients will use to access the service is:
 
     https://dynips.mydomain.com/dynips
 
