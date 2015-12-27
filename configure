@@ -1,0 +1,191 @@
+#!/usr/bin/python
+
+from argparse import ArgumentParser
+import os
+import subprocess
+
+parser = ArgumentParser( description='Configure the package')
+
+parser.add_argument(
+    '--zone-id',
+    help='[REQUIRED] Root 53 zone id',
+   required=True)
+
+parser.add_argument(
+    '--domain-root',
+    help='[REQUIRED] Root domain name (e.g. ips.example.com)',
+   required=True)
+
+parser.add_argument(
+    '--s3-bucket',
+    help='[REQUIRED] S3 bucket for runtime files',
+   required=True)
+
+parser.add_argument(
+    '--default-ip',
+    help='The IP for inactive hosts',
+   default='10.10.10.10')
+
+parser.add_argument(
+    '--ttl',
+    help='Hostname TTL in second (default 10)',
+   type=int,
+   default='10')
+
+parser.add_argument(
+    '--max-age',
+    help='Hostname expiry in seconds (default 3600)',
+   type=int,
+   default='3600')
+
+parser.add_argument(
+    '--max-errors',
+    help='Max login errors allowed (default 5)',
+   type=int,
+   default='5')
+
+parser.add_argument(
+    '--pw-hash-rounds',
+    help='Password hash rounds (default 8000)',
+   type=int,
+   default='8000')
+
+parser.add_argument(
+    '--server-lambda-name',
+    help='Name of the server lambda (default dynips-server)',
+   default='dynips-server')
+
+parser.add_argument(
+    '--expirer-lambda-name',
+    help='Name of the expirer lambda (default dynips-expirer)',
+   default='dynips-expirer')
+
+parser.add_argument(
+    '--server-iam-role',
+    help='Name of the server IAM role (default lambda-name)')
+
+parser.add_argument(
+    '--expirer-iam-role',
+    help='Name of the expirer IAM role (default lambda-name)')
+
+parser.add_argument(
+    '--prefix',
+    help='Installation root dir (default /usr/local)',
+   default='/usr/local')
+
+parser.add_argument(
+    '--bindir',
+    help='Dir for executables (default $(prefix)/bin)')
+
+parser.add_argument(
+    '--srcdir',
+    help='Location of dynips source files(default .)',
+   default='.')
+
+parser.add_argument(
+    '--without-bin',
+    help='Do not install local executables',
+   action='store_true')
+
+parser.add_argument(
+    '--without-expirer-lambda',
+    help='Do not install the expirer lambda',
+   action='store_true')
+
+parser.add_argument(
+    '--without-iam-roles',
+    help='Do not configure IAM roles',
+   action='store_true')
+
+parser.add_argument(
+    '--with-server-domain-name',
+    help='Define a server custom domain name',
+   action='store_true')
+
+parser.add_argument(
+    '--server-domain-name',
+    help='The custom server domain name')
+
+parser.add_argument(
+    '--certificate-file',
+    help='Path to TLS certificate file')
+
+parser.add_argument(
+    '--private-key-file',
+    help='Path to TLS private key file')
+
+parser.add_argument(
+    '--chain-file',
+    help='Path to TLS chain file')
+
+args= parser.parse_args()
+
+with open( 'configure.in', 'w+') as f:
+	f.write( '''#!/bin/bash
+#This file was created automatically by configure
+
+cat <<EOF > Makefile
+#This file was created automatically by configure
+
+SHELL=/bin/bash
+
+prefix=%s
+bindir=%s
+srcdir=%s
+
+domain_root=%s
+zone_id=%s
+s3_bucket=%s
+default_ip=%s
+ttl=%d
+max_age=%d
+max_errors=%d
+pw_hash_rounds=%d
+server_lambda_name=%s
+expirer_lambda_name=%s
+server_iam_role_name=%s
+expirer_iam_role_name=%s
+
+without_bin=%s
+without_expirer_lambda=%s
+without_iam_roles=%s
+
+with_server_domain_name=%s
+server_domain_name=%s
+certificate_file=%s
+private_key_file=%s
+chain_file=%s
+
+EOF
+
+cat Makefile.in >> Makefile
+
+'''
+		% (
+		args.prefix,
+		args.bindir if args.bindir else '\$(prefix)/bin',
+		args.srcdir,
+		args.domain_root,
+		args.zone_id,
+                args.s3_bucket,
+                args.default_ip,
+		args.ttl,
+		args.max_age,
+                args.max_errors,
+                args.pw_hash_rounds,
+                args.server_lambda_name if args.server_lambda_name else 'dynips-server',
+                args.expirer_lambda_name if args.expirer_lambda_name else 'dynips-expirer',
+                args.server_iam_role if args.server_iam_role else args.server_lambda_name,
+                args.expirer_iam_role if args.expirer_iam_role else args.expirer_lambda_name,
+                'True' if args.without_bin else 'False',
+		'True' if args.without_expirer_lambda else 'False',
+		'True' if args.without_iam_roles else 'False',
+		'True' if args.with_server_domain_name else 'False',
+                args.server_domain_name,
+                args.certificate_file,
+                args.private_key_file,
+                args.chain_file))
+
+os.chmod( 'configure.in', 0755)
+
+subprocess.call( './configure.in')

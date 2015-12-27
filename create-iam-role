@@ -1,0 +1,106 @@
+#!/usr/bin/python
+
+# Create or update an IAM role for the specified lambda function.
+# This script is idempotent.
+
+import boto3
+from argparse import ArgumentParser
+
+parser= ArgumentParser( description='Create an IAM role for a lambda function')
+
+parser.add_argument( '--name', required=True)
+parser.add_argument( '--s3-bucket', required=True)
+parser.add_argument( '--zone-id', required=True)
+
+args = parser.parse_args()
+
+
+ASSUME_ROLE_POLICY = '''{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+'''
+
+ROLE_POLICY = '''{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "arn:aws:logs:*:*:*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::%s"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::%s/state/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::%s/users/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "route53:ChangeResourceRecordSets"
+            ],
+            "Resource": [
+                "arn:aws:route53:::hostedzone/%s"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "route53:GetChange"
+            ],
+            "Resource": [
+                "arn:aws:route53:::change/*"
+            ]
+        }
+    ]
+}''' % ( args.s3_bucket, args.s3_bucket, args.s3_bucket, args.zone_id)
+
+iam = boto3.client( 'iam')
+roles = iam.list_roles()
+
+if args.name in [ x['RoleName'] for x in roles['Roles']]:
+	print 'Updating existing role...'
+	iam.update_assume_role_policy( RoleName=args.name, PolicyDocument=ASSUME_ROLE_POLICY)
+
+else:
+	print 'Creating new role...'
+	iam.create_role( RoleName=args.name, AssumeRolePolicyDocument=ASSUME_ROLE_POLICY)
+
+iam.put_role_policy( RoleName=args.name, PolicyName='Dynips_S3_access', PolicyDocument=ROLE_POLICY)

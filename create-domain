@@ -1,0 +1,66 @@
+#!/usr/bin/python
+
+# Associate a custom domain name with the DynipsServer API, or update
+# an existing custom domain.
+# This script is idempotent.
+
+import boto3
+import sys
+from argparse import ArgumentParser
+
+CERTIFICATE_NAME = 'DynipsTSLCertificate'
+
+parser= ArgumentParser( description="Create a custom domain name for a lambda function")
+
+parser.add_argument( '--api-name', required=True)
+parser.add_argument( "--domain-name", required=True)
+parser.add_argument( "--certificate-file", required=True)
+parser.add_argument( "--private-key-file", required=True)
+parser.add_argument( "--chain-file", required=True)
+
+args = parser.parse_args()
+
+client = boto3.client( 'apigateway')
+domains = client.get_domain_names()
+
+if 'items' in domains and next( (x for x in domains['items'] if x['domainName']==args.domain_name), None):
+    client.update_domain_name(
+        domainName=args.domain_name,
+        patchOperations=[
+            { "op":"replace", "path":"/certificateBody", "value":open( args.certificate_file).read() },
+            { "op":"replace", "path":"/certificatePrivateKey", "value":open( args.private_key_file).read() },
+            { "op":"replace", "path":"/certificateChain", "value":open( args.chain_file).read() },
+            ])
+else:
+    client.create_domain_name(
+        domainName=args.domain_name,
+        certificateName=CERTIFICATE_NAME,
+        certificateBody=open( args.certificate_file).read(),
+        certificatePrivateKey=open( args.private_key_file).read(),
+        certificateChain=open( args.chain_file).read())
+
+all_apis = boto3.client('apigateway').get_rest_apis()
+
+if 'items' in all_apis:
+    api = next( (x for x in all_apis['items'] if x['name'] == args.api_name), None)
+else:
+    api = None
+
+if not api:
+    sys.stderr.write( 'ERROR: The {} API is not defined'.format( args.api_name))
+    sys.exit(1)
+
+api_id = api['id']
+
+mappings = client.get_base_path_mappings( domainName=args.domain_name)
+
+if 'items' in mappings:
+    for m in mappings['items']:
+        if m['restApiId'] == api_id:
+            client.delete_base_path_mapping( domainName=args.domain_name, basePath=m['basePath'])
+
+client.create_base_path_mapping(
+    domainName=args.domain_name,
+    basePath='',
+    restApiId=api_id,
+    stage='prod')

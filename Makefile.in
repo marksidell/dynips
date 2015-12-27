@@ -1,0 +1,192 @@
+DYNIPS_VERSION=1.0.0
+
+LIB_FILES=dynips/params.py dynips/lib.py dynips/expire.py dynips/__init__.py
+PACKAGE_FILE=dist/dynips-$(DYNIPS_VERSION).tar.gz
+
+
+#======================================================================
+define PARAMS_PY
+# This file was created automatically
+
+class Params:
+    S3_BUCKET       = "$(s3_bucket)"
+    DOMAIN_ROOT     = "$(domain_root)"
+    ROUTE53_ZONE_ID = "$(zone_id)"
+    TTL             = $(ttl)
+    DEFAULT_IP      = "$(default_ip)"
+    MAX_AGE         = $(max_age)
+    MAX_ERRORS      = $(max_errors)
+    PW_HASH_ROUNDS  = $(pw_hash_rounds)
+endef
+
+#======================================================================
+define SETUP_PY
+from distutils.core import setup
+
+setup( name='dynips',
+    version="$(DYNIPS_VERSION)",
+    description='Dynips Module',
+    author='Mark Sidell',
+    author_email='mark@sidell.org',
+    url='http://www.sidell.org',
+    packages=['dynips'],
+    )
+endef
+
+#======================================================================
+
+.PHONY : all
+all: server.zip expirer.zip $(PACKAGE_FILE)
+
+.PHONY : install
+install : install_binfiles server_lambda expirer_lambda
+
+.PHONY : clean
+clean :
+	-rm -fr dynips
+	-rm -fr server
+	-rm -fr expirer
+	-rm -fr passlib
+	-rm -fr passlib-*
+	-rm -fr pytz
+	-rm -fr pytz-*
+	-rm -f setup.py
+	-rm -f $(PACKAGE_FILE)
+	-rm -f server.zip
+	-rm -f expirer.zip
+	-rm -fr build
+	-rm -fr dist
+	-rm -f MANIFEST
+	-rm -f server_api.txt
+
+dynips :
+	mkdir -p dynips
+
+export PARAMS_PY
+dynips/params.py : Makefile dynips
+	echo "$$PARAMS_PY" > $@
+
+dynips/lib.py : dynips $(srcdir)/lib.py
+	cp $(srcdir)/lib.py dynips
+	chown 0:0 dynips/lib.py
+	chmod 755 dynips/lib.py
+
+dynips/expire.py : dynips $(srcdir)/expire.py
+	cp $(srcdir)/expire.py dynips
+	chown 0:0 dynips/expire.py
+	chmod 755 dynips/expire.py
+
+dynips/__init__.py : dynips $(srcdir)/__init__.py
+	cp $(srcdir)/__init__.py dynips
+	chown 0:0 dynips/__init__.py
+	chmod 755 dynips/__init__.py
+
+export SETUP_PY
+setup.py : Makefile
+	echo "$$SETUP_PY" > $@
+	
+$(PACKAGE_FILE) : setup.py $(LIB_FILES)
+	python setup.py sdist
+
+passlib :
+	pip install --target=. passlib
+
+pytz :
+	pip install --target=. pytz
+
+server :
+	mkdir -p server
+
+server/dynips : server
+	ln -sfT ../dynips server/dynips
+
+server/passlib : server
+	ln -sfT ../passlib server/passlib
+
+server/pytz : server
+	ln -sfT ../pytz server/pytz
+
+server/lambda.py : server $(srcdir)/server_lambda.py
+	cp $(srcdir)/server_lambda.py server/lambda.py
+	chown 0:0 server/lambda.py
+	chmod 755 server/lambda.py
+
+server.zip : server/lambda.py server/dynips server/passlib server/pytz $(LIB_FILES) passlib pytz
+	[ -f server.zip ] && rm server.zip; cd server; zip -qr ../server.zip *
+
+expirer :
+	mkdir -p expirer
+
+expirer/dynips : expirer
+	ln -sfT ../dynips expirer/dynips
+
+expirer/passlib : expirer
+	ln -sfT ../passlib expirer/passlib
+
+expirer/pytz : expirer
+	ln -sfT ../pytz expirer/pytz
+
+expirer/lambda.py : expirer $(srcdir)/expirer_lambda.py
+	cp $(srcdir)/expirer_lambda.py expirer/lambda.py
+	chown 0:0 expirer/lambda.py
+	chmod 755 expirer/lambda.py
+
+expirer.zip : expirer/lambda.py expirer/dynips expirer/passlib expirer/pytz $(LIB_FILES) passlib pytz
+	[ -f expirer.zip ] && rm expirer.zip; cd expirer; zip -qr ../expirer.zip *
+
+.PHONY : install_binfiles
+install_binfiles : $(srcdir)/dynip setup.py $(LIB_FILES)
+ifeq ($(without_bin),True)
+	echo 'Not installing binaries'
+else
+	python setup.py install
+	cp dynip $(bindir)
+	PYTHON=$$(which python); sed --in-place "s|^#!/usr/bin/python|#!$${PYTHON}|" $(bindir)/dynip
+	chown 0:0 $(bindir)/dynip
+	chmod 755 $(bindir)/dynip
+endif
+
+.PHONY : bucket
+bucket :
+	python $(srcdir)/create-bucket --s3-bucket $(s3_bucket)
+
+.PHONY : server_iam_role
+server_iam_role:
+ifneq ($(without_iam_roles),True)
+	python $(srcdir)/create-iam-role \
+		--name $(server_iam_role_name) --s3-bucket $(s3_bucket) --zone-id $(zone_id)
+else
+	echo 'Not creating server IAM role'
+endif
+
+.PHONY : server_lambda
+server_lambda : server.zip bucket server_iam_role
+	python $(srcdir)/create-lambda --name $(server_lambda_name) --iam-role-name $(server_iam_role_name)
+	python $(srcdir)/create-server-api --lambda-name $(server_lambda_name)
+ifeq ($(with_server_domain_name),True)
+	python $(srcdir)/create-domain \
+		--api-name $(server_lambda_name) \
+		--domain-name $(server_domain_name) \
+		--certificate-file $(certificate_file) \
+		--private-key-file $(private_key_file) \
+		--chain-file $(chain_file)
+endif
+
+.PHONY : expirer_iam_role
+expirer_iam_role:
+ifneq ($(without_iam_roles),True)
+	python $(srcdir)/create-iam-role \
+		--name $(expirer_iam_role_name) --s3-bucket $(s3_bucket) --zone-id $(zone_id)
+else
+	echo 'Not creating expirer IAM role'
+endif
+
+.PHONY : expirer_lambda
+ifeq ($(without_expirer_lambda),True)
+expirer_lambda :
+	echo 'Not installing expirer lambda'
+else
+expirer_lambda : expirer.zip bucket server_iam_role
+	python $(srcdir)/create-lambda \
+		--name $(expirer_lambda_name) --iam-role-name $(expirer_iam_role_name)
+endif
