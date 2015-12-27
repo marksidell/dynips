@@ -28,11 +28,8 @@ def getExpiryTime( max_age = None):
 
 
 def getFullHostname( host):
-    return host+'.'+Params.DOMAIN_ROOT
+    return ''.join( (host,'.',Params.DOMAIN_ROOT))
 
-
-StateFile = collections.namedtuple( 'StateFile', 'file item host user sub ip ext ord')
-UserFile = collections.namedtuple( 'UserFile', 'file user')
 
 def argToTuple( arg):
     if arg is None:
@@ -41,6 +38,10 @@ def argToTuple( arg):
         return (arg,)
     else:
         return tuple(arg)
+
+
+StateFile = collections.namedtuple( 'StateFile', 'file item host user sub ip ext ord')
+UserFile = collections.namedtuple( 'UserFile', 'file user')
 
 class S3Bucket():
     PING_EXT    = 'ping'
@@ -148,15 +149,3 @@ class S3Bucket():
         bOk = change_info and 'PENDING' == change_info.get('Status')
 
         return (bOk, result)
-
-
-if __name__ == "__main__":
-    for x in S3Bucket().genStateFiles( ext=['ping', 'hold']):
-#    for x in S3Bucket().genStateFiles( base='sidell-hold'):
-        print x
-    print not [ x for x in S3Bucket().genStateFiles( ext=['pingx', 'holdx'])]
-#    print S3Bucket().isLocked( 'foo')
-    print S3Bucket().getUserFile( 'foo')
-    print S3Bucket().getUserFile( 'sidell')
-    print bool( S3Bucket().getUserFile( 'sidell'))
-    print bool( S3Bucket().getUserFile( 'foo'))
