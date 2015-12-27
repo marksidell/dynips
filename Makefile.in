@@ -161,7 +161,10 @@ endif
 
 .PHONY : server_lambda
 server_lambda : server.zip bucket server_iam_role
-	python $(srcdir)/create-lambda --name $(server_lambda_name) --iam-role-name $(server_iam_role_name)
+	python $(srcdir)/create-lambda \
+		--code-file server.zip \
+		--name $(server_lambda_name) \
+		--iam-role-name $(server_iam_role_name)
 	python $(srcdir)/create-server-api --lambda-name $(server_lambda_name)
 ifeq ($(with_server_domain_name),True)
 	python $(srcdir)/create-domain \
@@ -188,5 +191,7 @@ expirer_lambda :
 else
 expirer_lambda : expirer.zip bucket server_iam_role
 	python $(srcdir)/create-lambda \
-		--name $(expirer_lambda_name) --iam-role-name $(expirer_iam_role_name)
+		--code-file expirer.zip \
+		--name $(expirer_lambda_name) \
+		--iam-role-name $(expirer_iam_role_name)
 endif

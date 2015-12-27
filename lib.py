@@ -59,6 +59,10 @@ class S3Bucket():
         self.bucket = self.s3.Bucket( Params.S3_BUCKET)
         self.files = { f.key : f for f in self.bucket.objects.all() }
 
+    # A generator to iterate the state files.
+    # base and ext are optional filters.
+    # Return a StateFile named tuple.
+    #
     def genStateFiles( self, base=None, ext=None):
         base = argToTuple( base)
         ext = argToTuple( ext)
@@ -84,6 +88,9 @@ class S3Bucket():
                     ext=match.group(7),
                     ord=int( match.group(9)) if match.group(9) else None)
 
+    # A generator to iterate the state files.
+    # Return a USerFile named tuple.
+    #
     def genUserFiles( self):
         for k,f in self.files.iteritems():
             match = re.match( USERS_FOLDER+'([a-zA-Z0-9]+)', k)

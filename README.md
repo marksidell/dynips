@@ -151,7 +151,7 @@ You can also pass credentials to `dynip` via the optional arguments
 `--acccess-key-id`, `--secret-access-key`, and `--session-token`.
 
 `Dynip` requires that the AWS user or role used when running
-the program have the following rights: 
+the program has the following rights: 
 
 - Read/write acess to the S3 bucket used to store dynip state:
 s3:ListBucket, s3:PutObject, s3:GetObject, and s3:DeleteObject.
@@ -193,7 +193,7 @@ your responsibility to record any key the program generates.
 
 **edit**
 
-    dynip edit --user=<user> [--key=<key> | --key-length-<len> ]
+    dynip edit --user=<user> [--key=<key> | --key-length-<len>]
 
 Edit a user account. The arguments are the same as for **create**.
 
