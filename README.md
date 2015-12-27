@@ -44,6 +44,8 @@ you must have an appropriate SSL certificate for the domain.
 
 ### Client Usage
 
+#### Overview
+
 In the following section, `<dynip-server>` represents the hostname
 used to access your instance of the service. If you don't assign
 a custom domain to the service, the hostname will be an AWS-assigned
@@ -55,6 +57,8 @@ If you assign a custom domain, you would define it to be a CNAME to
 the API gateway address, and can be any name you choose. For example:
 
     dynips.mydomain.com
+
+#### Client actions
 
 To determine your current IP, use:
 
