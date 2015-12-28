@@ -6,17 +6,18 @@
 import boto3
 from argparse import ArgumentParser
 
-parser= ArgumentParser( description='Create an S3 bucket if it does not already exist')
-parser.add_argument( '--s3-bucket', required=True)
+parser = ArgumentParser(
+    description='Create an S3 bucket if it does not already exist')
+
+parser.add_argument('--s3-bucket', required=True)
 args = parser.parse_args()
 
-
-s3 = boto3.client( 's3')
+s3 = boto3.client('s3')
 buckets = s3.list_buckets()
 
-if next( (b for b in buckets['Buckets'] if b['Name']==args.s3_bucket), None):
-    print( 'Bucket {} already exists'.format( args.s3_bucket))
+if next((b for b in buckets['Buckets'] if b['Name'] == args.s3_bucket), None):
+    print('Bucket {} already exists'.format(args.s3_bucket))
 
 else:
-    print( 'Creating new bucket{}'.format( args.s3_bucket))
-    s3.create_bucket( Bucket=args.s3_bucket)
+    print('Creating new bucket{}'.format(args.s3_bucket))
+    s3.create_bucket(Bucket=args.s3_bucket)

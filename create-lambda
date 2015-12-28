@@ -6,33 +6,35 @@
 import boto3
 from argparse import ArgumentParser
 
-LAMBDA_TIMEOUT     = 3
+LAMBDA_TIMEOUT = 3
 LAMBDA_MEMORY_SIZE = 512
-LAMBDA_RUNTIME     = 'python2.7'
+LAMBDA_RUNTIME = 'python2.7'
 
-parser= ArgumentParser( description='Create an IAM role for a lambda function')
+parser = ArgumentParser(
+    description='Create an IAM role for a lambda function')
 
-parser.add_argument( '--code-file', required=True)
-parser.add_argument( '--name', required=True)
-parser.add_argument( '--iam-role-name', required=True)
+parser.add_argument('--code-file', required=True)
+parser.add_argument('--name', required=True)
+parser.add_argument('--iam-role-name', required=True)
 
 args = parser.parse_args()
 
-iam = boto3.client( 'iam')
-role = iam.get_role( RoleName=args.iam_role_name)
+iam = boto3.client('iam')
+role = iam.get_role(RoleName=args.iam_role_name)
 role_arn = role['Role']['Arn']
 
 if not role_arn:
-    raise RuntimeError( 'Unable to find IAM role {}'.format( args.iam_role_name))
+    raise RuntimeError(
+        'Unable to find IAM role {}'.format(args.iam_role_name))
 
 function_name = args.name
-code = open( args.code_file).read()
-description = 'Dynips {} lambda function'.format( args.name)
+code = open(args.code_file).read()
+description = 'Dynips {} lambda function'.format(args.name)
 
-client = boto3.client( 'lambda')
+client = boto3.client('lambda')
 functions = client.list_functions()
 
-if function_name in [ x['FunctionName'] for x in functions['Functions']]:
+if function_name in [x['FunctionName'] for x in functions['Functions']]:
     print 'Updating existing lambda...'
 
     client.update_function_configuration(
@@ -43,7 +45,7 @@ if function_name in [ x['FunctionName'] for x in functions['Functions']]:
         Timeout=LAMBDA_TIMEOUT,
         MemorySize=LAMBDA_MEMORY_SIZE)
 
-    client.update_function_code( FunctionName=function_name, ZipFile=code)
+    client.update_function_code(FunctionName=function_name, ZipFile=code)
 
 else:
     print 'Creating new lambda...'
@@ -53,7 +55,7 @@ else:
         Runtime=LAMBDA_RUNTIME,
         Role=role_arn,
         Handler='lambda.lambda_handler',
-        Code={ 'ZipFile': code },
+        Code={'ZipFile': code},
         Description=description,
         Timeout=LAMBDA_TIMEOUT,
         MemorySize=LAMBDA_MEMORY_SIZE)

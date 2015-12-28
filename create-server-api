@@ -10,40 +10,42 @@ import re
 import uuid
 from argparse import ArgumentParser
 
-parser= ArgumentParser( description='Create an API for the server lambda')
-parser.add_argument( '--lambda-name', required=True)
+parser = ArgumentParser(description='Create an API for the server lambda')
+parser.add_argument('--lambda-name', required=True)
 args = parser.parse_args()
 
-client = boto3.client( 'apigateway')
+client = boto3.client('apigateway')
 
 all_apis = client.get_rest_apis()['items']
 
-old_api = next( (x for x in all_apis if x['name'] == args.lambda_name), None)
+old_api = next((x for x in all_apis if x['name'] == args.lambda_name), None)
 if old_api:
-    api_id= old_api['id']
+    api_id = old_api['id']
 
 else:
-    api = client.create_rest_api( name=args.lambda_name)
+    api = client.create_rest_api(name=args.lambda_name)
     api_id = api['id']
 
 lclient = boto3.client('lambda')
-function = lclient.get_function( FunctionName=args.lambda_name)
+function = lclient.get_function(FunctionName=args.lambda_name)
 function_arn = function['Configuration']['FunctionArn']
-aws_region = re.match( 'arn:aws:lambda:([^:]+):', function_arn).group(1)
-uri = 'arn:aws:apigateway:%s:lambda:path/2015-03-31/functions/%s/invocations' % (aws_region, function_arn)
+aws_region = re.match('arn:aws:lambda:([^:]+):', function_arn).group(1)
+uri = 'arn:aws:apigateway:{}:lambda:path/2015-03-31/functions/{}/invocations' \
+    .format(aws_region, function_arn)
 
-resources = client.get_resources( restApiId=api_id)['items']
-resource = next( (x for x in resources if x['path']=='/dynips'), None)
+resources = client.get_resources(restApiId=api_id)['items']
+resource = next((x for x in resources if x['path'] == '/dynips'), None)
 
 if not resource:
-    root = next( (x for x in resources if x['path']=='/'), None)
-    resource = client.create_resource( restApiId=api_id, parentId=root['id'], pathPart='dynips')
+    root = next((x for x in resources if x['path'] == '/'), None)
+    resource = client.create_resource(
+        restApiId=api_id, parentId=root['id'], pathPart='dynips')
 
 resource_id = resource['id']
 
 if old_api:
     try:
-        client.delete_method( 
+        client.delete_method(
             restApiId=api_id,
             resourceId=resource_id,
             httpMethod='GET')
@@ -51,10 +53,10 @@ if old_api:
         pass
 
 method = client.put_method(
-            restApiId=api_id,
-            resourceId=resource_id,
-            httpMethod='GET',
-            authorizationType='NONE')
+    restApiId=api_id,
+    resourceId=resource_id,
+    httpMethod='GET',
+    authorizationType='NONE')
 
 integration = client.put_integration(
     restApiId=api_id,
@@ -64,14 +66,14 @@ integration = client.put_integration(
     integrationHttpMethod='POST',
     uri=uri,
     requestTemplates={
-	 "application/json":
-             json.dumps( {
+         "application/json":
+             json.dumps({
                  "host": "$input.params('host')",
                  "key": "$input.params('key')",
                  "ip": "$input.params('ip')",
                  "expire": "$input.params('expire')",
                  "remote_addr": "$context.identity.sourceIp"})},
-    )
+)
 
 integration_response = client.put_integration_response(
     restApiId=api_id,
@@ -85,27 +87,28 @@ method_response = client.put_method_response(
     resourceId=resource_id,
     httpMethod='GET',
     statusCode='200',
-    responseModels= {},
-    )
+    responseModels={},
+)
 
 deployment = client.create_deployment(
-     restApiId=api_id,
-     stageName='prod')
+    restApiId=api_id,
+    stageName='prod')
 
 permission = lclient.add_permission(
     FunctionName='dynips-server',
-    StatementId=str( uuid.uuid4()),
+    StatementId=str(uuid.uuid4()),
     Principal='apigateway.amazonaws.com',
     Action='lambda:InvokeFunction',
-    SourceArn='arn:aws:execute-api:{}::{}:/*/GET/dynips'.format( aws_region, api_id),
-    )
+    SourceArn='arn:aws:execute-api:{}::{}:/*/GET/dynips'.format(
+        aws_region, api_id),
+)
 
-hostname = '{}.execute-api.{}.amazonaws.com'.format( api_id, aws_region)
-url = 'https://{}/prod/dynips'.format( hostname)
+hostname = '{}.execute-api.{}.amazonaws.com'.format(api_id, aws_region)
+url = 'https://{}/prod/dynips'.format(hostname)
 
-with open( 'server_api.txt', 'w') as f:
-    f.write( 'HOSTNAME: {}\n'.format( hostname))
-    f.write( 'URL: {}\n'.format( url))
+with open('server_api.txt', 'w') as f:
+    f.write('HOSTNAME: {}\n'.format(hostname))
+    f.write('URL: {}\n'.format(url))
 
-print( 'Server HOSTNAME: {}'.format( hostname))
-print( 'Server URL: {}'.format( url))
+print('Server HOSTNAME: {}'.format(hostname))
+print('Server URL: {}'.format(url))
