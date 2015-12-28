@@ -189,7 +189,7 @@ ifeq ($(without_expirer_lambda),True)
 expirer_lambda :
 	echo 'Not installing expirer lambda'
 else
-expirer_lambda : expirer.zip bucket server_iam_role
+expirer_lambda : expirer.zip bucket expirer_iam_role
 	python $(srcdir)/create-lambda \
 		--code-file expirer.zip \
 		--name $(expirer_lambda_name) \

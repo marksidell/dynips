@@ -15,6 +15,7 @@ parser.add_argument('--zone-id', required=True)
 
 args = parser.parse_args()
 
+POLICY_NAME = 'Dynips_S3_access'
 
 ASSUME_ROLE_POLICY = '''{
   "Version": "2012-10-17",
@@ -96,17 +97,17 @@ ROLE_POLICY = '''{
 iam = boto3.client('iam')
 roles = iam.list_roles()
 
-if args.name in [x['RoleName'] for x in roles['Roles']]:
-    print 'Updating existing role...'
+if next((r for r in roles['Roles'] if r['RoleName']==args.name), None):
+    print( 'Updating existing IAM role {}...'.format( args.name))
     iam.update_assume_role_policy(
         RoleName=args.name, PolicyDocument=ASSUME_ROLE_POLICY)
 
 else:
-    print 'Creating new role...'
+    print( 'Creating new role {}...'.format( args.name))
     iam.create_role(
         RoleName=args.name, AssumeRolePolicyDocument=ASSUME_ROLE_POLICY)
 
 iam.put_role_policy(
     RoleName=args.name,
-    PolicyName='Dynips_S3_access',
+    PolicyName=POLICY_NAME,
     PolicyDocument=ROLE_POLICY)

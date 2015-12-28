@@ -27,31 +27,37 @@ if not role_arn:
     raise RuntimeError(
         'Unable to find IAM role {}'.format(args.iam_role_name))
 
-function_name = args.name
-code = open(args.code_file).read()
+lambda_name = args.name
+
+with open(args.code_file) as f:
+    code = f.read()
+
 description = 'Dynips {} lambda function'.format(args.name)
 
 client = boto3.client('lambda')
 functions = client.list_functions()
 
-if function_name in [x['FunctionName'] for x in functions['Functions']]:
-    print 'Updating existing lambda...'
+if next(
+    (f for f in functions['Functions'] if f['FunctionName']==lambda_name),
+    None):
+
+    print( 'Updating existing lambda {}...'.format( lambda_name))
 
     client.update_function_configuration(
-        FunctionName=function_name,
+        FunctionName=lambda_name,
         Role=role_arn,
         Handler='lambda.lambda_handler',
         Description=description,
         Timeout=LAMBDA_TIMEOUT,
         MemorySize=LAMBDA_MEMORY_SIZE)
 
-    client.update_function_code(FunctionName=function_name, ZipFile=code)
+    client.update_function_code(FunctionName=lambda_name, ZipFile=code)
 
 else:
-    print 'Creating new lambda...'
+    print( 'Creating new lambda {}...'.format( lambda_name))
 
     client.create_function(
-        FunctionName=function_name,
+        FunctionName=lambda_name,
         Runtime=LAMBDA_RUNTIME,
         Role=role_arn,
         Handler='lambda.lambda_handler',

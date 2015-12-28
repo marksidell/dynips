@@ -19,5 +19,5 @@ if next((b for b in buckets['Buckets'] if b['Name'] == args.s3_bucket), None):
     print('Bucket {} already exists'.format(args.s3_bucket))
 
 else:
-    print('Creating new bucket{}'.format(args.s3_bucket))
+    print('Creating new bucket {}'.format(args.s3_bucket))
     s3.create_bucket(Bucket=args.s3_bucket)

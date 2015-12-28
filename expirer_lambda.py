@@ -11,7 +11,8 @@ def lambda_handler(event, context):
     try:
         result = dynips.expire.expireHosts()
         logger.info(
-            'Expired: %s' % (','.join(result) if result else 'Nothing'))
+            'Expired: {}'.format(
+                ','.join(result) if result else 'Nothing')
 
     except Exception as e:
         logger.error(str(e))

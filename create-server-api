@@ -19,9 +19,9 @@ client = boto3.client('apigateway')
 all_apis = client.get_rest_apis()['items']
 
 old_api = next((x for x in all_apis if x['name'] == args.lambda_name), None)
+
 if old_api:
     api_id = old_api['id']
-
 else:
     api = client.create_rest_api(name=args.lambda_name)
     api_id = api['id']
@@ -33,7 +33,7 @@ aws_region = re.match('arn:aws:lambda:([^:]+):', function_arn).group(1)
 uri = 'arn:aws:apigateway:{}:lambda:path/2015-03-31/functions/{}/invocations' \
     .format(aws_region, function_arn)
 
-resources = client.get_resources(restApiId=api_id)['items']
+resources = client.get_resources(restApiId=api_id).get('items',[])
 resource = next((x for x in resources if x['path'] == '/dynips'), None)
 
 if not resource:
