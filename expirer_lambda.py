@@ -4,16 +4,17 @@ import logging
 import dynips.expire
 
 
-def lambda_handler( event, context):
+def lambda_handler(event, context):
     logger = logging.getLogger()
-    logger.setLevel( logging.INFO)
+    logger.setLevel(logging.INFO)
 
     try:
         result = dynips.expire.expireHosts()
-        logger.info( 'Expired: %s' % (','.join( result) if result else 'Nothing'))
+        logger.info(
+            'Expired: %s' % (','.join(result) if result else 'Nothing'))
 
     except Exception as e:
-        logger.error( str(e))
+        logger.error(str(e))
 
     return {}
 
@@ -21,4 +22,4 @@ def lambda_handler( event, context):
 if __name__ == '__main__':
     logging.basicConfig()
 
-    lambda_handler( {}, {})
+    lambda_handler({}, {})

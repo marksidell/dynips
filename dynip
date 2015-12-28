@@ -16,205 +16,218 @@ from dynips import lib, expire
 
 
 DEFAULT_KEY_LEN = 16
-MIN_KEY_LEN     = 9
+MIN_KEY_LEN = 9
 
 
-def genKey( len):
-    key= ''.join(random.SystemRandom().choice(
-        string.ascii_uppercase + string.ascii_lowercase + string.digits) for _ in range(len))
-    print( 'Key: {}'.format( key))
+def genKey(len):
+    key = ''.join(random.SystemRandom().choice(
+        string.ascii_uppercase +
+        string.ascii_lowercase +
+        string.digits) for _ in range(len))
+    print('Key: {}'.format(key))
     return key
 
 
-def makeUserFileBody( user, key, key_length):
-    pwd_context = CryptContext( schemes=["pbkdf2_sha256"],
-                                default="pbkdf2_sha256",
-                                all__vary_rounds = 0.1)
+def makeUserFileBody(user, key, key_length):
+    pwd_context = CryptContext(schemes=["pbkdf2_sha256"],
+                               default="pbkdf2_sha256",
+                               all__vary_rounds=0.1)
 
     if not key:
-        key = genKey( key_length)
+        key = genKey(key_length)
 
     return json.dumps(
-        {'user': user, 'keyhash': pwd_context.encrypt( key, rounds=Params.PW_HASH_ROUNDS)})
+        {'user': user,
+         'keyhash': pwd_context.encrypt(key, rounds=Params.PW_HASH_ROUNDS)})
 
 
-def checkUserArg( args):
+def checkUserArg(args):
     if not args.user:
-        raise RuntimeError( 'Argument --user is required')
+        raise RuntimeError('Argument --user is required')
 
 
-def getUserFile( bucket, args):
-    checkUserArg( args)
+def getUserFile(bucket, args):
+    checkUserArg(args)
 
-    file = bucket.getUserFile( args.user)
+    file = bucket.getUserFile(args.user)
     if file is None:
-        raise RuntimeError( "User '{}' does not exist".format( args.user))
+        raise RuntimeError("User '{}' does not exist".format(args.user))
 
     return file
 
 
-def checkKeyArgs( args):
+def checkKeyArgs(args):
     if args.key:
         if args.key_length:
-            raise RuntimeError( 'Specify --key or --key-length but not both')
-        if len( args.key) < MIN_KEY_LEN:
-            raise RuntimeError( 'The length of --key must be greater than {}'.format( MIN_KEY_LEN-1))
+            raise RuntimeError('Specify --key or --key-length but not both')
+        if len(args.key) < MIN_KEY_LEN:
+            raise RuntimeError(
+                'The length of --key must be greater than {}'
+                .format(MIN_KEY_LEN - 1))
     else:
         if args.key_length is None:
-            args.key_length= DEFAULT_KEY_LEN
+            args.key_length = DEFAULT_KEY_LEN
         elif args.key_length < MIN_KEY_LEN:
-            raise RuntimeError( '--key-length must be greater than {}'.format( MIN_KEY_LEN-1))
+            raise RuntimeError(
+                '--key-length must be greater than {}'
+                .format(MIN_KEY_LEN - 1))
 
 
-def checkUserSyntax( args):
-    if not re.match( '[a-zA-Z0-9]+$', args.user):
-        raise RuntimeError( 'A user name may contain only alphas and digits')
+def checkUserSyntax(args):
+    if not re.match('[a-zA-Z0-9]+$', args.user):
+        raise RuntimeError('A user name may contain only alphas and digits')
 
 
-def checkIpSyntax( args):
-    if not re.match( '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$', args.ip):
-        raise RuntimeError( 'The --ip is invalid')
+def checkIpSyntax(args):
+    if not re.match('[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$', args.ip):
+        raise RuntimeError('The --ip is invalid')
 
 
-def checkUserOrIp( args, wildok):
+def checkUserOrIp(args, wildok):
     if not args.user and not args.ip:
-        raise RuntimeError( 'You must specify --user and/or --ip')
+        raise RuntimeError('You must specify --user and/or --ip')
 
     if args.user and (not wildok or args.user != '*'):
-       checkUserSyntax( args)
+        checkUserSyntax(args)
 
     if args.ip and (not wildok or args.ip != '*'):
-        checkIpSyntax( args)
+        checkIpSyntax(args)
 
 
-def lockItem( bucket, name):
-    if bucket.isLocked( name):
-        print( "Item '{}' is already locked".format( name))
+def lockItem(bucket, name):
+    if bucket.isLocked(name):
+        print("Item '{}' is already locked".format(name))
     else:
-        bucket.writeLockFile( name, 'Locked by admin')
+        bucket.writeLockFile(name, 'Locked by admin')
 
 
-def unlockItem( bucket, name, attr):
+def unlockItem(bucket, name, attr):
 
-    if name=='*':
-        for f in bucket.genStateFiles( ext=[bucket.LOCK_EXT,bucket.ERROR_EXT]):
-            if getattr( f, attr):
-                if f.ext==bucket.LOCK_EXT:
-                    print 'Unlocked {}'.format( f.item)
+    if name == '*':
+        for f in bucket.genStateFiles(ext=[bucket.LOCK_EXT, bucket.ERROR_EXT]):
+            if getattr(f, attr):
+                if f.ext == bucket.LOCK_EXT:
+                    print 'Unlocked {}'.format(f.item)
                 f.file.delete()
     else:
-        file = bucket.getLockFile( name)
+        file = bucket.getLockFile(name)
 
         if file is None:
-            print( "Item '{}' is not locked".format( name))
+            print("Item '{}' is not locked".format(name))
         else:
             file.delete()
-            for f in bucket.genStateFiles( base=name, ext=bucket.ERROR_EXT):
+            for f in bucket.genStateFiles(base=name, ext=bucket.ERROR_EXT):
                 f.file.delete()
 
 
-def doExpire( bucket, args):
-    result = expire.expireHosts( bucket=bucket, max_age=args.max_age)
-    print( 'Expired: {}'.format( ', '.join( result) if result else 'Nothing'))
+def doExpire(bucket, args):
+    result = expire.expireHosts(bucket=bucket, max_age=args.max_age)
+    print('Expired: {}'.format(', '.join(result) if result else 'Nothing'))
 
 
-def doCreate( bucket, args):
-    checkUserArg( args)
-    checkKeyArgs( args)
-    checkUserSyntax( args)
+def doCreate(bucket, args):
+    checkUserArg(args)
+    checkKeyArgs(args)
+    checkUserSyntax(args)
 
-    if bucket.getUserFile( args.user) is not None:
-        raise RuntimeError( "User '{}' already exists".format( args.user))
+    if bucket.getUserFile(args.user) is not None:
+        raise RuntimeError("User '{}' already exists".format(args.user))
 
     bucket.writeUserFile(
         args.user,
-        makeUserFileBody( args.user, args.key, args.key_length))
-    
-
-def doEdit( bucket, args):
-    checkKeyArgs( args)
-
-    getUserFile( bucket, args).put(
-        Body=makeUserFileBody( args.user, args.key, args.key_length))
+        makeUserFileBody(args.user, args.key, args.key_length))
 
 
-def doDelete( bucket, args):
-    getUserFile( bucket, args).delete()
+def doEdit(bucket, args):
+    checkKeyArgs(args)
 
-    for f in bucket.genStateFiles( ext=[bucket.PING_EXT,bucket.HOLD_EXT,bucket.EXPIRED_EXT]):
+    getUserFile(bucket, args).put(
+        Body=makeUserFileBody(args.user, args.key, args.key_length))
+
+
+def doDelete(bucket, args):
+    getUserFile(bucket, args).delete()
+
+    for f in bucket.genStateFiles(
+            ext=[bucket.PING_EXT, bucket.HOLD_EXT, bucket.EXPIRED_EXT]):
+
         if f.user == args.user:
             f.delete()
 
 
-def doLock( bucket, args):
-    checkUserOrIp( args, False)
+def doLock(bucket, args):
+    checkUserOrIp(args, False)
 
     if args.user:
-        lockItem( bucket, args.user)
+        lockItem(bucket, args.user)
 
     if args.ip:
-        lockItem( bucket, args.ip)
+        lockItem(bucket, args.ip)
 
 
-def doUnlock( bucket, args):
-    checkUserOrIp( args, True)
+def doUnlock(bucket, args):
+    checkUserOrIp(args, True)
 
     if args.user:
-        unlockItem( bucket, args.user, 'user')
+        unlockItem(bucket, args.user, 'user')
 
     if args.ip:
-        unlockItem( bucket, args.ip, 'ip')
+        unlockItem(bucket, args.ip, 'ip')
 
 
-def doList( bucket, args):
+def doList(bucket, args):
     HOST = 'HOST'
-    IP   = 'IP'
-    STATE = 'STATE  ' #long enough for 'expired'
+    IP = 'IP'
+    STATE = 'STATE  '  # long enough for 'expired'
 
     hosts = collections.defaultdict(dict)
 
     max_hostlen = len(HOST)
     max_iplen = len(IP)
 
-    for f in bucket.genStateFiles( ext=[bucket.PING_EXT,bucket.HOLD_EXT,bucket.EXPIRED_EXT]):
-        max_hostlen = max( max_hostlen, len(f.host))
+    for f in bucket.genStateFiles(
+            ext=[bucket.PING_EXT, bucket.HOLD_EXT, bucket.EXPIRED_EXT]):
+
+        max_hostlen = max(max_hostlen, len(f.host))
         host = hosts[f.host]
 
-        if f.ext==bucket.HOLD_EXT:
+        if f.ext == bucket.HOLD_EXT:
             host['state'] = 'hold'
         else:
-            host['date'] = f.file.last_modified.astimezone( dateutil.tz.tzlocal())
+            host['date'] = f.file.last_modified.astimezone(
+                dateutil.tz.tzlocal())
             try:
-                ip = json.load( f.file.get()['Body'])['ip']
+                ip = json.load(f.file.get()['Body'])['ip']
             except:
                 ip = 'ERROR'
             host['ip'] = ip
-            max_iplen = max( max_iplen, len(ip))
+            max_iplen = max(max_iplen, len(ip))
 
-            if f.ext==bucket.EXPIRED_EXT:
+            if f.ext == bucket.EXPIRED_EXT:
                 host['state'] = 'expired'
 
     print(
-        '\nHosts:\n{host:<{host_width}}  {ip:<{ip_width}}  {state}  LAST MODIFIED'.format(
-                host=HOST,host_width=max_hostlen,
-                ip=IP,ip_width=max_iplen,
-                state=STATE))
+        '\nHosts:\n{host:<{host_width}}'
+        '{ip:<{ip_width}}  {state}  LAST MODIFIED'
+        .format(
+            host=HOST, host_width=max_hostlen,
+            ip=IP, ip_width=max_iplen,
+            state=STATE))
 
     if hosts:
-        for k,v in sorted( hosts.iteritems()):
+        for k, v in sorted(hosts.iteritems()):
             print(
-                '{host:<{host_width}}' \
-                '  {ip:<{ip_width}}' \
-                '  {state:<{state_width}}' \
+                '{host:<{host_width}}'
+                '  {ip:<{ip_width}}'
+                '  {state:<{state_width}}'
                 '  {date}'.format(
-                    host=k,host_width=max_hostlen,
-                    ip=v['ip'],ip_width=max_iplen,
+                    host=k, host_width=max_hostlen,
+                    ip=v['ip'], ip_width=max_iplen,
                     state=v.get('state', 'active'),
                     state_width=len(STATE),
                     date=v['date']))
     else:
-        print( '(none)')
-
+        print('(none)')
 
     USER = 'USER'
     DATE = 'LAST MODIFIED'
@@ -224,24 +237,24 @@ def doList( bucket, args):
 
     for f in bucket.genUserFiles():
         user = users[f.user]
-        max_userlen = max( max_userlen, len(f.user))
+        max_userlen = max(max_userlen, len(f.user))
 
-        user['date'] = f.file.last_modified.astimezone( dateutil.tz.tzlocal())
+        user['date'] = f.file.last_modified.astimezone(dateutil.tz.tzlocal())
 
     print(
         '\nUsers:\n{user:<{user_width}}  {date}'.format(
-                user=USER,user_width=max_userlen,
-                date=DATE))
+            user=USER, user_width=max_userlen,
+            date=DATE))
 
     if users:
-        for k,v in sorted( users.iteritems()):
+        for k, v in sorted(users.iteritems()):
             print(
-                '{user:<{user_width}}' \
+                '{user:<{user_width}}'
                 '  {dt}'.format(
-                    user=k,user_width=max_userlen,
+                    user=k, user_width=max_userlen,
                     dt=v['date']))
     else:
-        print( '(none)')
+        print('(none)')
 
     ITEM = 'USER/IP'
     DATE = 'DATE'
@@ -250,46 +263,47 @@ def doList( bucket, args):
     max_itemlen = len(ITEM)
     max_datelen = len(DATE)
 
-    for f in bucket.genStateFiles( ext=bucket.LOCK_EXT):
+    for f in bucket.genStateFiles(ext=bucket.LOCK_EXT):
         item = items[f.item]
-        max_itemlen = max( max_itemlen, len(f.item))
+        max_itemlen = max(max_itemlen, len(f.item))
 
-        dt = str( f.file.last_modified.astimezone( dateutil.tz.tzlocal()))
+        dt = str(f.file.last_modified.astimezone(dateutil.tz.tzlocal()))
         item['date'] = dt
-        max_datelen = max( max_datelen, len(dt))
+        max_datelen = max(max_datelen, len(dt))
 
         try:
-            msg = json.load( f.file.get()['Body'])['error']
+            msg = json.load(f.file.get()['Body'])['error']
         except:
             msg = 'Unknown'
         item['msg'] = msg
 
     print(
         '\nLocks:\n{item:<{item_width}}  {dt:<{dt_width}}  REASON'.format(
-                item=ITEM,item_width=max_itemlen,dt=DATE,dt_width=max_datelen))
+            item=ITEM, item_width=max_itemlen, dt=DATE, dt_width=max_datelen))
 
     if items:
-        for k,v in sorted( items.iteritems()):
+        for k, v in sorted(items.iteritems()):
             print(
-                '{item:<{item_width}}' \
-                '  {dt:<{dt_width}}' \
+                '{item:<{item_width}}'
+                '  {dt:<{dt_width}}'
                 '  {msg}'.format(
-                    item=k,item_width=max_itemlen,
-                    dt=v['date'],dt_width=max_datelen,
+                    item=k, item_width=max_itemlen,
+                    dt=v['date'], dt_width=max_datelen,
                     msg=v['msg']))
     else:
-        print( '(none)')
+        print('(none)')
 
-    print( '')
+    print('')
 
 
 if __name__ == "__main__":
-    parser= ArgumentParser( description="Manage dynips users")
+    parser = ArgumentParser(description="Manage dynips users")
 
     parser.add_argument(
         "cmd",
         help="The operation to perform",
-        choices=['create','edit','delete','expire','lock','unlock','list'])
+        choices=[
+            'create', 'edit', 'delete', 'expire', 'lock', 'unlock', 'list'])
 
     parser.add_argument(
         "--user",
@@ -306,11 +320,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--key-length",
         help="The length of auto-generated keys (default 16)",
-       type=int)
+        type=int)
 
     parser.add_argument(
         "--max-age",
-        help='Max age for expiry (Default {} seconds)'.format( Params.MAX_AGE),
+        help='Max age for expiry (Default {} seconds)'.format(Params.MAX_AGE),
         type=int)
 
     parser.add_argument(
@@ -327,31 +341,34 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-
     try:
         if args.access_key_id and not args.secret_access_key:
-            raise RuntimeError( '--secret-acccess-key must be specified with --access-key-id')
+            raise RuntimeError(
+                '--secret-acccess-key must be specified with --access-key-id')
 
         if args.secret_access_key and not args.access_key_id:
-            raise RuntimeError( '--acccess-key-id must be specified with --secret-access-key')
+            raise RuntimeError(
+                '--acccess-key-id must be specified with --secret-access-key')
 
         if args.session_token and not args.access_key_id:
-            raise RuntimeError( '--acccess-key-id and --secret-asscess-key must be specified with --session-token')
+            raise RuntimeError(
+                '--acccess-key-id and --secret-asscess-key'
+                'must be specified with --session-token')
 
-        bucket = lib.S3Bucket( 
-                access_key_id = args.access_key_id,
-                secret_access_key = args.secret_access_key,
-                session_token = args.session_token)
+        bucket = lib.S3Bucket(
+            access_key_id=args.access_key_id,
+            secret_access_key=args.secret_access_key,
+            session_token=args.session_token)
 
-        {   'expire' : doExpire,
-            'create' : doCreate,
-            'edit'   : doEdit,
-            'delete' : doDelete,
-            'lock'   : doLock,
-            'unlock' : doUnlock,
-            'list'   : doList,
-        }[ args.cmd]( bucket, args)
+        {'expire': doExpire,
+            'create': doCreate,
+            'edit': doEdit,
+            'delete': doDelete,
+            'lock': doLock,
+            'unlock': doUnlock,
+            'list': doList,
+         }[args.cmd](bucket, args)
 
     except Exception as e:
-        sys.stderr.write( 'Error: {}\n'.format( str(e)))
-        sys.exit( 1)
+        sys.stderr.write('Error: {}\n'.format(str(e)))
+        sys.exit(1)
