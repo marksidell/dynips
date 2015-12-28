@@ -35,12 +35,12 @@ to provide the correct credentials after a certain number of attempts.
 Client accounts are managed via a simple command line utility, written
 in Python.
 
-The service is implemented with AWS Lambda Functions, the API Gateway,
-S3, and Route 53. No dedicated web server is required to run the service.
-
 It is possible to associate a custom domain with the service web
 address (such as "dynips.mydomain.com"). To use a custom domain,
 you must have an appropriate SSL certificate for the domain.
+
+The service is implemented with AWS Lambda Functions, the API Gateway,
+S3, and Route 53. No dedicated web server is required to run the service.
 
 ### Client Usage
 
@@ -114,7 +114,7 @@ of the following form:
       "new_ip":"<after a change, the new IP of the hostname>"
     }
 
-Finally, you can find out the current IP for an hostname by omitting
+Finally, you can find out the current IP for a hostname by omitting
 the key from a request:
 
     https://<dynip-server>/dynips?host=<hostname>
@@ -248,16 +248,16 @@ run periodically. There are a couple of ways to run an expirer:
 #### A Lambda Function
 
 By default, the dynips installation program creates a
-`dynips-expirer` Lambda Function, which when run expires all
+`dynips-expirer` lambda function, which when run expires all
 out-of-date hostnames. There are various ways you could
 arrange to run the lambda periodically. The best method
-is with a Lambda "Scheduled Event" source.
+is with a lambda "Scheduled Event" source.
 Unfortunately, the only way at
 present to create a scheduled event is via the AWS console. To
 schedule the `dynips-expirer` do this:
 
 1. Install dynips
-2. In the AWS Console, find the `dynips-expirer` Lambda service and
+2. In the AWS Console, find the `dynips-expirer` lambda service and
 click it.
 3. On the lambda's **Event sources** tab, click **Add event source**.
 4. On the **Add event source** dialog, select event source type
@@ -266,7 +266,7 @@ schedule.
 
 #### A cron job
 
-You can also create a cron job on a convient computer to run the
+You can also create a cron job on a convenient computer to run the
 command `dynip expire` periodically. Of course, the job must have
 access to the necessary AWS credentials.
 
@@ -490,7 +490,7 @@ required rights:
     }
 
 In addition, the following trust relationship must be defined,
-to allow the AWS Lambda service to assume the IAM role:
+to allow the AWS lambda service to assume the IAM role:
 
     {
       "Version": "2012-10-17",
