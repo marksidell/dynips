@@ -328,13 +328,13 @@ function with that name.
 lambda function. The default is `dynips-expirer`.
 
 `--server-iam-role=<name>` is the name of the IAM role used by the
-server lambda function. The default is the same named assigned to the
+server lambda function. The default is the same name assigned to the
 server lambda function (which by default is `dynips-server`). You can
 assign a different name if you already have an IAM role with the same
 name, or if you want to use a pre-existing IAM role.
 
 `--expirer-iam-role=<name>` is the name of the IAM role used by the
-expirer lambda function. The default is the same named assigned to the
+expirer lambda function. The default is the same name assigned to the
 expirer lambda function (which by default is `dynips-expirer`). You can
 assign a different name if you already have an IAM role with the same
 name, or if you want to use a pre-existing IAM role.
