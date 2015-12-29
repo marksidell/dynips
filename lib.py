@@ -4,6 +4,7 @@ import re
 import collections
 import datetime
 import pytz
+
 from params import Params
 
 
@@ -30,6 +31,10 @@ def getExpiryTime(max_age=None):
 
 def getFullHostname(host):
     return ''.join((host, '.', Params.DOMAIN_ROOT))
+
+
+def getMaxErrors():
+    return Params.MAX_ERRORS
 
 
 def argToTuple(arg):
@@ -76,25 +81,26 @@ class S3Bucket():
         for k, f in self.files.iteritems():
             match = re.match(
                 STATE_FOLDER +
-                '((([a-zA-Z0-9]+)(-([a-zA-Z0-9]+))?)|'
-                '([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+))'
-                '\.([a-z]+)(\.([0-9]+))?$',
+                '(?P<item>(?P<host>'
+                '(?P<user>[a-zA-Z0-9]+)(?:-(?P<sub>[a-zA-Z0-9]+))?)|'
+                '(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+))'
+                '\.(?P<ext>[a-z]+)(?:\.(?P<ord>[0-9]+))?$',
                 k)
 
             if match and \
-                    (not base or match.group(1) in base) and \
-                    (not ext or match.group(7) in ext):
+                    (not base or match.group('item') in base) and \
+                    (not ext or match.group('ext') in ext):
                 yield StateFile(
                     file=f,
-                    item=match.group(1),
-                    host=match.group(2),
-                    user=match.group(3),
-                    sub=match.group(5),
-                    ip=match.group(6),
-                    ext=match.group(7),
-                    ord=int(match.group(9)) if match.group(9) else None)
+                    item=match.group('item'),
+                    host=match.group('host'),
+                    user=match.group('user'),
+                    sub=match.group('sub'),
+                    ip=match.group('ip'),
+                    ext=match.group('ext'),
+                    ord=int(match.group('ord')) if match.group('ord') else None)
 
-    # A generator to iterate the state files.
+    # A generator to iterate the user files.
     # Return a USerFile named tuple.
     #
     def genUserFiles(self):
