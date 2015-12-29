@@ -94,14 +94,30 @@ deployment = client.create_deployment(
     restApiId=api_id,
     stageName='prod')
 
+# Delete any existing permissions
+#
+try:
+   stmt = json.loads(
+            lclient.get_policy(
+                FunctionName=args.lambda_name).get('Policy')).get('Statement')
+
+   if stmt:
+       for sid in (s['Sid'] for s in stmt if 'Sid' in s):
+           lclient.remove_permission(
+               FunctionName=args.lambda_name, StatementId=sid)
+except:
+    pass
+
+account_id = boto3.resource('iam').CurrentUser().arn.split(':')[4]
+
 permission = lclient.add_permission(
-    FunctionName='dynips-server',
+    FunctionName=args.lambda_name,
     StatementId=str(uuid.uuid4()),
     Principal='apigateway.amazonaws.com',
     Action='lambda:InvokeFunction',
-    SourceArn='arn:aws:execute-api:{}::{}:/*/GET/dynips'.format(
-        aws_region, api_id),
-)
+    SourceArn='arn:aws:execute-api:{}:{}:{}/*/GET/dynips'.format(
+        aws_region, account_id, api_id),
+    )
 
 hostname = '{}.execute-api.{}.amazonaws.com'.format(api_id, aws_region)
 url = 'https://{}/prod/dynips'.format(hostname)
