@@ -6,8 +6,7 @@ import json
 import boto3
 import socket
 from passlib.context import CryptContext
-from dynips.params import Params
-from dynips.lib import S3Bucket, getFullHostname
+from dynips.lib import S3Bucket, getFullHostname, getMaxErrors
 
 
 class MyException(Exception):
@@ -19,7 +18,17 @@ class MyException(Exception):
 
 
 def recordError(bucket, name, msg):
-    ords = [f.ord for f in bucket.genStateFiles(base=name, ext='error')
+    '''Record the fact that an error occurred for the specifed
+    name, which is either a username or an IP address. We do this
+    by creating a file with the name <name>.ERROR.<ord>, where <ord>
+    is the next higest ordinal for the given name.
+
+    If the number of ERROR files reaches MAX_ERRORS, we lock the
+    user or IP by writing the file <name>.LOCK.
+    '''
+
+    ords = [f.ord
+                for f in bucket.genStateFiles(base=name, ext=bucket.ERROR_EXT)
             if f.ord is not None]
 
     bucket.writeStateFile(
@@ -28,25 +37,38 @@ def recordError(bucket, name, msg):
         json.dumps({'error': msg}),
         ord=(max(ords) if ords else 0) + 1)
 
-    if len(ords) + 1 >= Params.MAX_ERRORS:
+    if len(ords) + 1 >= getMaxErrors():
         bucket.writeLockFile(name, msg)
 
 
 def lambda_handler(event, context):
+    '''This is the dynips server lambda function.
+
+    The event dict contains the following items obtained
+    from the https request:
+
+    remote_addr: The IP of the remote client
+    key: The key param (i.e. the user password)
+    host: The host param (hostname to be registered)
+    ip: The IP param (an optional IP to assign to the host)
+    expire: The expire param (the value 'no' means to mark the host hold)
+    '''
+
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
     result = {}
 
     bucket = None
-    client_ip = event['remote_addr']
     user = None
+    client_ip = event['remote_addr']
 
     key = event.get('key')
     if key:
+        # Hide the key in logs
         event['key'] = '****'
 
-    logger.info(str(event))
+    logger.info('Request: {}'.format( str(event)))
 
     try:
         bucket = S3Bucket()
@@ -88,7 +110,7 @@ def lambda_handler(event, context):
             if key:
                 user_data = json.load(user_file.get()['Body'])
 
-                hash = user_data['keyhash']
+                hash = user_data.get( 'keyhash')
                 if not hash:
                     raise MyException(
                         500, False, 'The user configuration is damaged')
@@ -111,10 +133,10 @@ def lambda_handler(event, context):
                 if cur_ip != new_ip:
                     action = 'updated'
                     result['new_ip'] = new_ip
-                    bOk, commit_result = bucket.setHostIP(host, new_ip)
-                    logger.info(str(commit_result))
+                    ok, commit_result = bucket.setHostIP(host, new_ip)
+                    logger.info('Route53 result: {}'.format( str(commit_result)))
 
-                    if not bOk:
+                    if not ok:
                         raise MyException(
                             500, 'Internal error updating host IP')
                 else:
@@ -147,6 +169,7 @@ def lambda_handler(event, context):
         result['message'] = 'Error 500: Internal error: {}'.format(str(e))
         result['code'] = 500
 
+    logger.info('Result: {}'.format( result))
     return result
 
 

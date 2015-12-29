@@ -5,6 +5,11 @@ import dynips.expire
 
 
 def lambda_handler(event, context):
+    '''This is the expirer lambda function. It simply
+    calls expireHosts() and logs the list of expired
+    hosts.
+    '''
+
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 

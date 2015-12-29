@@ -2,15 +2,16 @@
 
 import sys
 from argparse import ArgumentParser
-import boto3
 import random
 import string
 import json
 import collections
-from passlib.context import CryptContext
 import re
 import pytz
 import dateutil
+import boto3
+from passlib.context import CryptContext
+
 from dynips.params import Params
 from dynips import lib, expire
 
@@ -19,31 +20,21 @@ DEFAULT_KEY_LEN = 16
 MIN_KEY_LEN = 9
 
 
-def genKey(len):
-    key = ''.join(random.SystemRandom().choice(
-        string.ascii_uppercase +
-        string.ascii_lowercase +
-        string.digits) for _ in range(len))
-    print('Key: {}'.format(key))
-    return key
-
-
 def makeUserFileBody(user, key, key_length):
     pwd_context = CryptContext(schemes=["pbkdf2_sha256"],
                                default="pbkdf2_sha256",
                                all__vary_rounds=0.1)
 
     if not key:
-        key = genKey(key_length)
+        key = ''.join(random.SystemRandom().choice(
+            string.ascii_uppercase +
+            string.ascii_lowercase +
+            string.digits) for _ in range(key_length))
+        print('Key: {}'.format(key))
 
     return json.dumps(
         {'user': user,
          'keyhash': pwd_context.encrypt(key, rounds=Params.PW_HASH_ROUNDS)})
-
-
-def checkUserArg(args):
-    if not args.user:
-        raise RuntimeError('Argument --user is required')
 
 
 def getUserFile(bucket, args):
@@ -54,6 +45,36 @@ def getUserFile(bucket, args):
         raise RuntimeError("User '{}' does not exist".format(args.user))
 
     return file
+
+
+def lockItem(bucket, name):
+    if bucket.isLocked(name):
+        print("Item '{}' is already locked".format(name))
+    else:
+        bucket.writeLockFile(name, 'Locked by admin')
+
+
+def unlockItem(bucket, name, attr):
+    if name == '*':
+        for f in bucket.genStateFiles(ext=[bucket.LOCK_EXT, bucket.ERROR_EXT]):
+            if getattr(f, attr):
+                if f.ext == bucket.LOCK_EXT:
+                    print 'Unlocked {}'.format(f.item)
+                f.file.delete()
+    else:
+        file = bucket.getLockFile(name)
+
+        if file is None:
+            print("Item '{}' is not locked".format(name))
+        else:
+            file.delete()
+            for f in bucket.genStateFiles(base=name, ext=bucket.ERROR_EXT):
+                f.file.delete()
+
+
+def checkUserArg(args):
+    if not args.user:
+        raise RuntimeError('Argument --user is required')
 
 
 def checkKeyArgs(args):
@@ -92,32 +113,6 @@ def checkUserOrIp(args, wildok):
 
     if args.ip and (not wildok or args.ip != '*'):
         checkIpSyntax(args)
-
-
-def lockItem(bucket, name):
-    if bucket.isLocked(name):
-        print("Item '{}' is already locked".format(name))
-    else:
-        bucket.writeLockFile(name, 'Locked by admin')
-
-
-def unlockItem(bucket, name, attr):
-
-    if name == '*':
-        for f in bucket.genStateFiles(ext=[bucket.LOCK_EXT, bucket.ERROR_EXT]):
-            if getattr(f, attr):
-                if f.ext == bucket.LOCK_EXT:
-                    print 'Unlocked {}'.format(f.item)
-                f.file.delete()
-    else:
-        file = bucket.getLockFile(name)
-
-        if file is None:
-            print("Item '{}' is not locked".format(name))
-        else:
-            file.delete()
-            for f in bucket.genStateFiles(base=name, ext=bucket.ERROR_EXT):
-                f.file.delete()
 
 
 def doExpire(bucket, args):
@@ -360,7 +355,7 @@ if __name__ == "__main__":
             secret_access_key=args.secret_access_key,
             session_token=args.session_token)
 
-        {'expire': doExpire,
+        {   'expire': doExpire,
             'create': doCreate,
             'edit': doEdit,
             'delete': doDelete,
