@@ -4,7 +4,8 @@ import lib
 
 
 def expireHosts(bucket=None, max_age=None):
-    '''Expire all hostnames that have not been updated
+    '''
+    Expire all hostnames that have not been updated
     more recently than max_age seconds ago, and that
     are not marked hold.
 
@@ -26,7 +27,7 @@ def expireHosts(bucket=None, max_age=None):
     # Build a list of candidate hosts to expire (all PING files)
     # and a set of hosts being held (all HOLD files).
     #
-    for f in bucket.genStateFiles(ext=[bucket.PING_EXT, bucket.HOLD_EXT]):
+    for f in bucket.iterStateFiles(ext=[bucket.PING_EXT, bucket.HOLD_EXT]):
         if f.ext == bucket.PING_EXT:
             if f.file.last_modified < expiry_time:
                 candidates.append(f)

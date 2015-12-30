@@ -18,7 +18,8 @@ class MyException(Exception):
 
 
 def recordError(bucket, name, msg):
-    '''Record the fact that an error occurred for the specifed
+    '''
+    Record the fact that an error occurred for the specifed
     name, which is either a username or an IP address. We do this
     by creating a file with the name <name>.ERROR.<ord>, where <ord>
     is the next higest ordinal for the given name.
@@ -28,7 +29,7 @@ def recordError(bucket, name, msg):
     '''
 
     ords = [f.ord
-                for f in bucket.genStateFiles(base=name, ext=bucket.ERROR_EXT)
+                for f in bucket.iterStateFiles(base=name, ext=bucket.ERROR_EXT)
             if f.ord is not None]
 
     bucket.writeStateFile(
@@ -42,7 +43,8 @@ def recordError(bucket, name, msg):
 
 
 def lambda_handler(event, context):
-    '''This is the dynips server lambda function.
+    '''
+    This is the dynips server lambda function.
 
     The event dict contains the following items obtained
     from the https request:

@@ -47,8 +47,26 @@ def argToTuple(arg):
 
 
 StateFile = collections.namedtuple(
+    '''
+    The tuple returned by S3Bucket.iterStateFiles()
+
+    file: The S3 ObjectSummary for the file
+    item: The base filename
+    host: If the file references a hostname, the name
+    user: If the file references a hostname, the user portion
+    sub:  If the file references a hostname, the option part
+    ip:   If the file references an IP, the IP
+    ord:  If the extension is followed by an integer ordinal, the value
+    '''
     'StateFile', 'file item host user sub ip ext ord')
+
 UserFile = collections.namedtuple(
+    '''
+    The tuple returned by S3Bucket.iterUserFiles()
+
+    file: The S3 ObjectSummary for the file
+    user: The username
+    '''
     'UserFile', 'file user')
 
 
@@ -70,11 +88,21 @@ class S3Bucket():
         self.bucket = self.s3.Bucket(Params.S3_BUCKET)
         self.files = {f.key: f for f in self.bucket.objects.all()}
 
-    # A generator to iterate the state files.
-    # base and ext are optional filters.
-    # Return a StateFile named tuple.
-    #
-    def genStateFiles(self, base=None, ext=None):
+    def iterStateFiles(self, base=None, ext=None):
+        '''
+        A generator to iterate the state files.
+
+        base
+            is an optional string or iterable of strings
+            specifying which base filename(s) to include
+
+        ext
+            is an optional string or iterable of strings
+            specifying which filename extensions(s) to
+            include
+
+        The generator returns a StateFile namedtuple
+        '''
         base = argToTuple(base)
         ext = argToTuple(ext)
 
@@ -100,16 +128,28 @@ class S3Bucket():
                     ext=match.group('ext'),
                     ord=int(match.group('ord')) if match.group('ord') else None)
 
-    # A generator to iterate the user files.
-    # Return a USerFile named tuple.
-    #
-    def genUserFiles(self):
+    def iterUserFiles(self):
+        '''
+        A generator to iterate the state files.
+
+        base
+            is an optional string or iterable of strings
+            specifying which base filename(s) to include
+
+        ext
+            is an optional string or iterable of strings
+            specifying which filename extensions(s) to
+            include
+
+        The generator returns a UserFile namedtuple
+        '''
         for k, f in self.files.iteritems():
             match = re.match(USERS_FOLDER + '([a-zA-Z0-9]+)', k)
             if match:
                 yield UserFile(file=f, user=match.group(1))
 
     def getFile(self, filename):
+        '''Return the S3 ObjectSummary for the specified file, or None'''
         return self.files.get(filename)
 
     def writeStateFile(self, name, ext, body, ord=None):
@@ -132,6 +172,11 @@ class S3Bucket():
         self.bucket.put_object(Key=getUserFilename(user), Body=body)
 
     def writePingFile(self, hostname, ip, hold):
+        '''
+        Write or update the .ping file for the specified hostname.
+        If hold, also write a .hold file for the hostname. Otherwise
+        delete any existing .hold file.
+        '''
         self.writeStateFile(
             hostname, self.PING_EXT, json.dumps({'ip': ip}))
 
@@ -141,13 +186,18 @@ class S3Bucket():
 
         hold_file = self.getFile(getStateFilename(hostname, self.HOLD_EXT))
 
-        if hold and not hold_file:
-            self.writeStateFile(
-                hostname, self.HOLD_EXT, json.dumps({'ip': ip}))
-        elif not hold and hold_file:
-            hold_file.delete()
+        if hold:
+            if not hold_file:
+                self.writeStateFile(
+                    hostname, self.HOLD_EXT, json.dumps({'ip': ip}))
+        else:
+            if hold_file:
+                hold_file.delete()
 
     def setHostIP(self, host, ip):
+        '''
+        Create or update the route 53 A record for the specified hostname.
+        '''
         result = self.session.client('route53').change_resource_record_sets(
             HostedZoneId=Params.ROUTE53_ZONE_ID,
             ChangeBatch={

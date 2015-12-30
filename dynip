@@ -56,7 +56,7 @@ def lockItem(bucket, name):
 
 def unlockItem(bucket, name, attr):
     if name == '*':
-        for f in bucket.genStateFiles(ext=[bucket.LOCK_EXT, bucket.ERROR_EXT]):
+        for f in bucket.iterStateFiles(ext=[bucket.LOCK_EXT, bucket.ERROR_EXT]):
             if getattr(f, attr):
                 if f.ext == bucket.LOCK_EXT:
                     print 'Unlocked {}'.format(f.item)
@@ -68,7 +68,7 @@ def unlockItem(bucket, name, attr):
             print("Item '{}' is not locked".format(name))
         else:
             file.delete()
-            for f in bucket.genStateFiles(base=name, ext=bucket.ERROR_EXT):
+            for f in bucket.iterStateFiles(base=name, ext=bucket.ERROR_EXT):
                 f.file.delete()
 
 
@@ -143,7 +143,7 @@ def doEdit(bucket, args):
 def doDelete(bucket, args):
     getUserFile(bucket, args).delete()
 
-    for f in bucket.genStateFiles(
+    for f in bucket.iterStateFiles(
             ext=[bucket.PING_EXT, bucket.HOLD_EXT, bucket.EXPIRED_EXT]):
 
         if f.user == args.user:
@@ -180,7 +180,7 @@ def doList(bucket, args):
     max_hostlen = len(HOST)
     max_iplen = len(IP)
 
-    for f in bucket.genStateFiles(
+    for f in bucket.iterStateFiles(
             ext=[bucket.PING_EXT, bucket.HOLD_EXT, bucket.EXPIRED_EXT]):
 
         max_hostlen = max(max_hostlen, len(f.host))
@@ -203,7 +203,7 @@ def doList(bucket, args):
 
     print(
         '\nHosts:\n{host:<{host_width}}'
-        '{ip:<{ip_width}}  {state}  LAST MODIFIED'
+        '  {ip:<{ip_width}}  {state}  LAST MODIFIED'
         .format(
             host=HOST, host_width=max_hostlen,
             ip=IP, ip_width=max_iplen,
@@ -230,7 +230,7 @@ def doList(bucket, args):
     users = collections.defaultdict(dict)
     max_userlen = len(USER)
 
-    for f in bucket.genUserFiles():
+    for f in bucket.iterUserFiles():
         user = users[f.user]
         max_userlen = max(max_userlen, len(f.user))
 
@@ -258,7 +258,7 @@ def doList(bucket, args):
     max_itemlen = len(ITEM)
     max_datelen = len(DATE)
 
-    for f in bucket.genStateFiles(ext=bucket.LOCK_EXT):
+    for f in bucket.iterStateFiles(ext=bucket.LOCK_EXT):
         item = items[f.item]
         max_itemlen = max(max_itemlen, len(f.item))
 
