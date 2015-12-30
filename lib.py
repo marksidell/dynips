@@ -46,27 +46,27 @@ def argToTuple(arg):
         return tuple(arg)
 
 
-StateFile = collections.namedtuple(
-    '''
-    The tuple returned by S3Bucket.iterStateFiles()
+'''
+The tuple returned by S3Bucket.iterStateFiles()
 
-    file: The S3 ObjectSummary for the file
-    item: The base filename
-    host: If the file references a hostname, the name
-    user: If the file references a hostname, the user portion
-    sub:  If the file references a hostname, the option part
-    ip:   If the file references an IP, the IP
-    ord:  If the extension is followed by an integer ordinal, the value
-    '''
+file: The S3 ObjectSummary for the file
+item: The base filename
+host: If the file references a hostname, the name
+user: If the file references a hostname, the user portion
+sub:  If the file references a hostname, the option part
+ip:   If the file references an IP, the IP
+ord:  If the extension is followed by an integer ordinal, the value
+'''
+StateFile = collections.namedtuple(
     'StateFile', 'file item host user sub ip ext ord')
 
-UserFile = collections.namedtuple(
-    '''
-    The tuple returned by S3Bucket.iterUserFiles()
+'''
+The tuple returned by S3Bucket.iterUserFiles()
 
-    file: The S3 ObjectSummary for the file
-    user: The username
-    '''
+file: The S3 ObjectSummary for the file
+user: The username
+'''
+UserFile = collections.namedtuple(
     'UserFile', 'file user')
 
 

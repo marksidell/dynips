@@ -15,26 +15,16 @@ def expireHosts(bucket=None, max_age=None):
     delete the PING file and replace it with an
     EXPIRED file.
     '''
-
     if bucket is None:
         bucket = lib.S3Bucket()
 
-    expired = []
-    candidates = []
-    holds = set()
+    holds = set(f.host for f in bucket.iterStateFiles(ext=bucket.HOLD_EXT))
     expiry_time = lib.getExpiryTime(max_age)
+    expired = []
 
-    # Build a list of candidate hosts to expire (all PING files)
-    # and a set of hosts being held (all HOLD files).
-    #
-    for f in bucket.iterStateFiles(ext=[bucket.PING_EXT, bucket.HOLD_EXT]):
-        if f.ext == bucket.PING_EXT:
-            if f.file.last_modified < expiry_time:
-                candidates.append(f)
-        else:
-            holds.add(f.host)
+    for f in (x for x in bucket.iterStateFiles(ext=bucket.PING_EXT)
+              if x.file.last_modified < expiry_time and x.host not in holds):
 
-    for f in (x for x in candidates if x.host not in holds):
         bucket.setHostIP(f.host, None)
         bucket.writeStateFile(
             f.host, bucket.EXPIRED_EXT, f.file.get()['Body'].read())
