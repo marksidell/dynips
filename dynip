@@ -20,64 +20,18 @@ DEFAULT_KEY_LEN = 16
 MIN_KEY_LEN = 9
 
 
-def makeUserFileBody(user, key, key_length):
-    pwd_context = CryptContext(schemes=["pbkdf2_sha256"],
-                               default="pbkdf2_sha256",
-                               all__vary_rounds=0.1)
-
-    if not key:
-        key = ''.join(random.SystemRandom().choice(
-            string.ascii_uppercase +
-            string.ascii_lowercase +
-            string.digits) for _ in range(key_length))
-        print('Key: {}'.format(key))
-
-    return json.dumps(
-        {'user': user,
-         'keyhash': pwd_context.encrypt(key, rounds=Params.PW_HASH_ROUNDS)})
-
-
-def getUserFile(bucket, args):
-    checkUserArg(args)
-
-    file = bucket.getUserFile(args.user)
-    if file is None:
-        raise RuntimeError("User '{}' does not exist".format(args.user))
-
-    return file
-
-
-def lockItem(bucket, name):
-    if bucket.isLocked(name):
-        print("Item '{}' is already locked".format(name))
-    else:
-        bucket.writeLockFile(name, 'Locked by admin')
-
-
-def unlockItem(bucket, name, attr):
-    if name == '*':
-        for f in bucket.iterStateFiles(ext=[bucket.LOCK_EXT, bucket.ERROR_EXT]):
-            if getattr(f, attr):
-                if f.ext == bucket.LOCK_EXT:
-                    print 'Unlocked {}'.format(f.item)
-                f.file.delete()
-    else:
-        file = bucket.getLockFile(name)
-
-        if file is None:
-            print("Item '{}' is not locked".format(name))
-        else:
-            file.delete()
-            for f in bucket.iterStateFiles(base=name, ext=bucket.ERROR_EXT):
-                f.file.delete()
-
-
 def checkUserArg(args):
+    '''
+    Fail if no --user is specified
+    '''
     if not args.user:
         raise RuntimeError('Argument --user is required')
 
 
 def checkKeyArgs(args):
+    '''
+    Validate the --key and --key-length args
+    '''
     if args.key:
         if args.key_length:
             raise RuntimeError('Specify --key or --key-length but not both')
@@ -95,16 +49,25 @@ def checkKeyArgs(args):
 
 
 def checkUserSyntax(args):
+    '''
+    Make sure a --user name is legal
+    '''
     if not re.match('[a-zA-Z0-9]+$', args.user):
         raise RuntimeError('A user name may contain only alphas and digits')
 
 
 def checkIpSyntax(args):
+    '''
+    Make sure an --ip arg is legal IPv4
+    '''
     if not re.match('[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$', args.ip):
         raise RuntimeError('The --ip is invalid')
 
 
 def checkUserOrIp(args, wildok):
+    '''
+    Check that either a valid --user or a valid --ip is specified.
+    '''
     if not args.user and not args.ip:
         raise RuntimeError('You must specify --user and/or --ip')
 
@@ -114,6 +77,74 @@ def checkUserOrIp(args, wildok):
     if args.ip and (not wildok or args.ip != '*'):
         checkIpSyntax(args)
 
+
+def makeUserFileBody(user, key, key_length):
+    '''
+    Construct the JSON body for a user file,
+    with a hash of the specified key
+    '''
+    pwd_context = CryptContext(schemes=["pbkdf2_sha256"],
+                               default="pbkdf2_sha256",
+                               all__vary_rounds=0.1)
+
+    if not key:
+        key = ''.join(random.SystemRandom().choice(
+            string.ascii_uppercase +
+            string.ascii_lowercase +
+            string.digits) for _ in range(key_length))
+        print('Key: {}'.format(key))
+
+    return json.dumps(
+        {'user': user,
+         'keyhash': pwd_context.encrypt(key, rounds=Params.PW_HASH_ROUNDS)})
+
+
+def getUserFile(bucket, args):
+    '''
+    Get the S3 ObjectSummary for a user file
+    '''
+    checkUserArg(args)
+
+    file = bucket.getUserFile(args.user)
+    if file is None:
+        raise RuntimeError("User '{}' does not exist".format(args.user))
+
+    return file
+
+
+def lockItem(bucket, name):
+    '''
+    Lock a user or IP, by writing a .lock file
+    '''
+    if bucket.isLocked(name):
+        print("Item '{}' is already locked".format(name))
+    else:
+        bucket.writeLockFile(name, 'Locked by admin')
+
+
+def unlockItem(bucket, name, attr):
+    '''
+    Unlock a user or IP, by deleting the corresponding .lock file.
+    Accept wildcards.
+    '''
+    if name == '*':
+        for f in bucket.iterStateFiles(ext=[bucket.LOCK_EXT, bucket.ERROR_EXT]):
+            if getattr(f, attr):
+                if f.ext == bucket.LOCK_EXT:
+                    print 'Unlocked {}'.format(f.item)
+                f.file.delete()
+    else:
+        file = bucket.getLockFile(name)
+
+        if file is None:
+            print("Item '{}' is not locked".format(name))
+        else:
+            file.delete()
+            for f in bucket.iterStateFiles(base=name, ext=bucket.ERROR_EXT):
+                f.file.delete()
+
+
+# The do<Something> functions below implement the various dynip commands...
 
 def doExpire(bucket, args):
     result = expire.expireHosts(bucket=bucket, max_age=args.max_age)
