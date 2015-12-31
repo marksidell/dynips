@@ -121,7 +121,8 @@ def lambda_handler(event, context):
                         schemes=['pbkdf2_sha256']).verify(key, hash):
 
                     raise MyException(
-                        401, True, 'Unknown user or invalid key')
+                        401, True, "Unknown user '{}' or invalid key '{}'".format(
+                            user, key))
 
                 new_ip = event.get('ip')
                 if new_ip:
@@ -136,9 +137,13 @@ def lambda_handler(event, context):
                     action = 'updated'
                     result['new_ip'] = new_ip
                     ok, commit_result = bucket.setHostIP(host, new_ip)
-                    logger.info('Route53 result: {}'.format( str(commit_result)))
 
-                    if not ok:
+                    if ok:
+                        logger.info(
+                            'Route53 result: {}'.format( str(commit_result)))
+                    else:
+                        logger.error(
+                            'Route53 result: {}'.format( str(commit_result)))
                         raise MyException(
                             500, 'Internal error updating host IP')
                 else:
@@ -165,10 +170,9 @@ def lambda_handler(event, context):
             if user:
                 recordError(bucket, user, e.msg)
 
-    except Exception as e:
-        raise
-        logger.error(str(e))
-        result['message'] = 'Error 500: Internal error: {}'.format(str(e))
+    except:
+        logging.exception( 'Woops')
+        result['message'] = 'Error 500: Internal error';
         result['code'] = 500
 
     logger.info('Result: {}'.format( result))

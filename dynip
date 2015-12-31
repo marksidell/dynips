@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from __future__ import print_function
+
 import sys
 from argparse import ArgumentParser
 import random
@@ -83,8 +85,8 @@ def makeUserFileBody(user, key, key_length):
     Construct the JSON body for a user file,
     with a hash of the specified key
     '''
-    pwd_context = CryptContext(schemes=["pbkdf2_sha256"],
-                               default="pbkdf2_sha256",
+    pwd_context = CryptContext(schemes=['pbkdf2_sha256'],
+                               default='pbkdf2_sha256',
                                all__vary_rounds=0.1)
 
     if not key:
@@ -131,7 +133,7 @@ def unlockItem(bucket, name, attr):
         for f in bucket.iterStateFiles(ext=[bucket.LOCK_EXT, bucket.ERROR_EXT]):
             if getattr(f, attr):
                 if f.ext == bucket.LOCK_EXT:
-                    print 'Unlocked {}'.format(f.item)
+                    print( 'Unlocked {}'.format(f.item))
                 f.file.delete()
     else:
         file = bucket.getLockFile(name)
@@ -322,48 +324,49 @@ def doList(bucket, args):
     print('')
 
 
-if __name__ == "__main__":
-    parser = ArgumentParser(description="Manage dynips users")
+if __name__ == '__main__':
+    parser = ArgumentParser(description='Manage dynips users')
 
     parser.add_argument(
-        "cmd",
-        help="The operation to perform",
+        'cmd',
+        help='The operation to perform',
         choices=[
-            'create', 'edit', 'delete', 'expire', 'lock', 'unlock', 'list'])
+            'create', 'edit', 'delete', 'lock', 'unlock', 'expire', 'list'])
 
     parser.add_argument(
-        "--user",
-        help="User name")
+        '--user',
+        help='User name')
 
     parser.add_argument(
-        "--ip",
-        help="IP address")
+        '--ip',
+        help='IP address')
 
     parser.add_argument(
-        "--key",
-        help="User key (passphrase)")
+        '--key',
+        help='User key (passphrase)')
 
     parser.add_argument(
-        "--key-length",
-        help="The length of auto-generated keys (default 16)",
+        '--key-length',
+        help='The length of auto-generated keys (default {})'.format(
+            DEFAULT_KEY_LEN),
         type=int)
 
     parser.add_argument(
-        "--max-age",
-        help='Max age for expiry (Default {} seconds)'.format(Params.MAX_AGE),
+        '--max-age',
+        help='Max age for expiry (default {} seconds)'.format(Params.MAX_AGE),
         type=int)
 
     parser.add_argument(
-        "--access-key-id",
-        help="AWS credentials key ID")
+        '--access-key-id',
+        help='AWS credentials key ID')
 
     parser.add_argument(
-        "--secret-access-key",
-        help="AWS credentials secret key")
+        '--secret-access-key',
+        help='AWS credentials secret key')
 
     parser.add_argument(
-        "--session-token",
-        help="AWS credentials session token")
+        '--session-token',
+        help='AWS credentials session token')
 
     args = parser.parse_args()
 
@@ -396,5 +399,5 @@ if __name__ == "__main__":
          }[args.cmd](bucket, args)
 
     except Exception as e:
-        sys.stderr.write('Error: {}\n'.format(str(e)))
+        print( 'Error: ', str(e), file=sys.stderr)
         sys.exit(1)
