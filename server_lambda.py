@@ -121,8 +121,9 @@ def lambda_handler(event, context):
                         schemes=['pbkdf2_sha256']).verify(key, hash):
 
                     raise MyException(
-                        401, True, "Unknown user '{}' or invalid key '{}'".format(
-                            user, key))
+                        401, True,
+                        "Unknown user '{}' or invalid key '****'".format(
+                            user))
 
                 new_ip = event.get('ip')
                 if new_ip:
