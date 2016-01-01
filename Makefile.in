@@ -39,7 +39,7 @@ endef
 all: server.zip expirer.zip $(PACKAGE_FILE)
 
 .PHONY : install
-install : install_binfiles server_lambda expirer_lambda
+install : install_binfiles server_api expirer_lambda
 
 .PHONY : clean
 clean :
@@ -165,6 +165,9 @@ server_lambda : server.zip bucket server_iam_role
 		--code-file server.zip \
 		--name $(server_lambda_name) \
 		--iam-role-name $(server_iam_role_name)
+
+.PHONY : server_api
+server_api : server_lambda
 	python $(srcdir)/create-server-api --lambda-name $(server_lambda_name)
 ifeq ($(with_server_domain_name),True)
 	python $(srcdir)/create-domain \
