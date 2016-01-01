@@ -22,6 +22,25 @@ parser.add_argument("--chain-file", required=True)
 args = parser.parse_args()
 
 client = boto3.client('apigateway')
+
+
+#======================================================================
+# Get the ID of the dynips server API
+
+all_apis = client.get_rest_apis().get('items',[])
+api = next((x for x in all_apis if x['name'] == args.api_name), None)
+
+if not api:
+    sys.stderr.write('ERROR: The {} API is not defined'.format(args.api_name))
+    sys.exit(1)
+
+api_id = api['id']
+
+
+#======================================================================
+# If the domain name already exists, update its SSL certificate.
+# Otherwise create a new domain name.
+
 domains = client.get_domain_names()
 
 if 'items' in domains and \
@@ -49,14 +68,10 @@ else:
         certificatePrivateKey=open(args.private_key_file).read(),
         certificateChain=open(args.chain_file).read())
 
-all_apis = boto3.client('apigateway').get_rest_apis().get('items',[])
-api = next((x for x in all_apis if x['name'] == args.api_name), None)
 
-if not api:
-    sys.stderr.write('ERROR: The {} API is not defined'.format(args.api_name))
-    sys.exit(1)
-
-api_id = api['id']
+#======================================================================
+# Create a mapping from the domain name to the API, for the 'prod'
+# deployment. But first delete any existing mappings to the same API.
 
 mappings = client.get_base_path_mappings(
                 domainName=args.domain_name).get('items',[])

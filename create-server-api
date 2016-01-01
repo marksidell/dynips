@@ -18,6 +18,12 @@ args = parser.parse_args()
 
 client = boto3.client('apigateway')
 
+
+#======================================================================
+# The API has the same name as the lambda function.
+# If an API with that name exists, reuse it.
+# Otherwise create a new API.
+
 all_apis = client.get_rest_apis()['items']
 
 old_api = next((x for x in all_apis if x['name'] == args.lambda_name), None)
@@ -28,12 +34,20 @@ else:
     api = client.create_rest_api(name=args.lambda_name)
     api_id = api['id']
 
+
+#======================================================================
+# Calculate the URI for the lambda function
+
 lclient = boto3.client('lambda')
 function = lclient.get_function(FunctionName=args.lambda_name)
 function_arn = function['Configuration']['FunctionArn']
 aws_region = re.match('arn:aws:lambda:([^:]+):', function_arn).group(1)
 uri = 'arn:aws:apigateway:{}:lambda:path/2015-03-31/functions/{}/invocations' \
     .format(aws_region, function_arn)
+
+
+#======================================================================
+# Create an API resource for '/dynips'
 
 resources = client.get_resources(restApiId=api_id).get('items',[])
 resource = next((x for x in resources if x['path'] == '/dynips'), None)
@@ -44,6 +58,10 @@ if not resource:
         restApiId=api_id, parentId=root['id'], pathPart='dynips')
 
 resource_id = resource['id']
+
+
+#======================================================================
+# Create a method for http GET, after deleting any existing method.
 
 if old_api:
     try:
@@ -60,6 +78,13 @@ client.put_method(
     httpMethod='GET',
     authorizationType='NONE')
 
+
+#======================================================================
+# Create an integration that connects the method to the lambda
+# function.
+# The request template maps the expected GET params to items that are
+# passed to the function via the event dictionary argument.
+
 client.put_integration(
     restApiId=api_id,
     resourceId=resource_id,
@@ -75,7 +100,20 @@ client.put_integration(
                  "ip": "$input.params('ip')",
                  "expire": "$input.params('expire')",
                  "remote_addr": "$context.identity.sourceIp"})},
-)
+    )
+
+
+#======================================================================
+# Create method responses and integration responses for the http
+# status codes to be returned.
+# For code 200, the lambda function returns a dict which the API
+# converts to a json string.
+# For error codes, the lambda function raises an exception, with an
+# errorMessage of the form '<code>: <message>'. The selectionPattern
+# matches the '<code>: ' part of the errorMessage, to determine the
+# status code to be returned. The responseTemplate extracts the
+# errorMessage from the exception object and converts it to a json
+# string to be returned to the client.
 
 for c in (200,400,401,500):
     client.put_method_response(
@@ -99,12 +137,21 @@ for c in (200,400,401,500):
         responseTemplates={} if c==200 else {'application/json':'{"error":$input.json(\'$.errorMessage\')}'}
         )
 
-deployment = client.create_deployment(
+
+#======================================================================
+# Deploy the API
+
+client.create_deployment(
     restApiId=api_id,
     stageName='prod')
 
-# Delete any existing permissions
-#
+
+#======================================================================
+# Create a trust relationship permission that allows the API to
+# invoke  the lambda function. The SourceArn argument grants the
+# permssion only to our API gateway, not to any API.
+
+# First, delete any existing permissions
 try:
    stmt = json.loads(
             lclient.get_policy(
@@ -119,7 +166,7 @@ except:
 
 account_id = boto3.resource('iam').CurrentUser().arn.split(':')[4]
 
-permission = lclient.add_permission(
+lclient.add_permission(
     FunctionName=args.lambda_name,
     StatementId=str(uuid.uuid4()),
     Principal='apigateway.amazonaws.com',
@@ -127,6 +174,11 @@ permission = lclient.add_permission(
     SourceArn='arn:aws:execute-api:{}:{}:{}/*/GET/dynips'.format(
         aws_region, account_id, api_id),
     )
+
+
+#======================================================================
+# Print and save the API hostname and full URL used to access the
+# API.
 
 hostname = '{}.execute-api.{}.amazonaws.com'.format(api_id, aws_region)
 url = 'https://{}/prod/dynips'.format(hostname)

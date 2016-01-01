@@ -19,6 +19,10 @@ parser.add_argument('--iam-role-name', required=True)
 
 args = parser.parse_args()
 
+#======================================================================
+# Look up the ARN for the IAM role to be used for the lambda
+# function.
+
 iam = boto3.client('iam')
 role = iam.get_role(RoleName=args.iam_role_name)
 role_arn = role['Role']['Arn']
@@ -27,8 +31,13 @@ if not role_arn:
     raise RuntimeError(
         'Unable to find IAM role {}'.format(args.iam_role_name))
 
+
+#======================================================================
+# If the lambda already exists, update it. Otherwise create a new one.
+
 lambda_name = args.name
 
+# Read the zip file containing the code
 with open(args.code_file) as f:
     code = f.read()
 
