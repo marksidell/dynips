@@ -162,8 +162,6 @@ def lambda_handler(event, context):
 
     except MyException as e:
         logger.error(e.msg)
-        result['message'] = 'Error {}: {}'.format(e.code, e.msg)
-        result['code'] = e.code
 
         if e.record and bucket is not None:
             recordError(bucket, client_ip, e.msg)
@@ -171,10 +169,15 @@ def lambda_handler(event, context):
             if user:
                 recordError(bucket, user, e.msg)
 
+        # NOTE: The format of the error message must match the
+        # pattern expected in the integration response defined in
+        # create-server-api
+        #
+        raise Exception( '{}: {}'.format( e.code, e.msg))
+
     except:
         logging.exception( 'Woops')
-        result['message'] = 'Error 500: Internal error';
-        result['code'] = 500
+        raise Exception('500: Internal error')
 
     logger.info('Result: {}'.format( result))
     return result

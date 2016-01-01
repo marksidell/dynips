@@ -3,6 +3,8 @@
 # Create or update an API for the server lambda.
 # This script is idempotent.
 
+from __future__ import print_function
+
 import boto3
 import sys
 import json
@@ -52,13 +54,13 @@ if old_api:
     except:
         pass
 
-method = client.put_method(
+client.put_method(
     restApiId=api_id,
     resourceId=resource_id,
     httpMethod='GET',
     authorizationType='NONE')
 
-integration = client.put_integration(
+client.put_integration(
     restApiId=api_id,
     resourceId=resource_id,
     httpMethod='GET',
@@ -75,20 +77,27 @@ integration = client.put_integration(
                  "remote_addr": "$context.identity.sourceIp"})},
 )
 
-integration_response = client.put_integration_response(
-    restApiId=api_id,
-    resourceId=resource_id,
-    httpMethod='GET',
-    statusCode='200',
-    selectionPattern='')
+for c in (200,400,401,500):
+    client.put_method_response(
+        restApiId=api_id,
+        resourceId=resource_id,
+        httpMethod='GET',
+        statusCode=str(c),
+        responseModels={},
+        )
 
-method_response = client.put_method_response(
-    restApiId=api_id,
-    resourceId=resource_id,
-    httpMethod='GET',
-    statusCode='200',
-    responseModels={},
-)
+    client.put_integration_response(
+        restApiId=api_id,
+        resourceId=resource_id,
+        httpMethod='GET',
+        statusCode=str(c),
+
+        # NOTE: The format of the error message is determined in the
+        # exception handler code of server_lambda.py.
+        selectionPattern='' if c==200 else '.*{}: .*'.format(c),
+
+        responseTemplates={} if c==200 else {'application/json':'{"error":$input.json(\'$.errorMessage\')}'}
+        )
 
 deployment = client.create_deployment(
     restApiId=api_id,
@@ -122,9 +131,9 @@ permission = lclient.add_permission(
 hostname = '{}.execute-api.{}.amazonaws.com'.format(api_id, aws_region)
 url = 'https://{}/prod/dynips'.format(hostname)
 
-with open('server_api.txt', 'w') as f:
-    f.write('HOSTNAME: {}\n'.format(hostname))
-    f.write('URL: {}\n'.format(url))
+with open('server_api.txt', 'wt') as f:
+    print( 'HOSTNAME: ', hostname, file=f)
+    print( 'URL: ', url, file=f)
 
-print('Server HOSTNAME: {}'.format(hostname))
-print('Server URL: {}'.format(url))
+print('Server HOSTNAME: ', hostname)
+print('Server URL: ', url)
