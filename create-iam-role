@@ -12,10 +12,12 @@ parser = ArgumentParser(
 parser.add_argument('--name', required=True)
 parser.add_argument('--s3-bucket', required=True)
 parser.add_argument('--zone-id', required=True)
+parser.add_argument('--allow-read-users', action='store_true')
 
 args = parser.parse_args()
 
-POLICY_NAME = 'Dynips_S3_access'
+POLICY_NAME_COMMON = 'Dynips_common'
+POLICY_NAME_READUSERS = 'Dynips_read_users'
 
 ASSUME_ROLE_POLICY = '''{
   "Version": "2012-10-17",
@@ -32,7 +34,7 @@ ASSUME_ROLE_POLICY = '''{
 }
 '''
 
-ROLE_POLICY = '''{
+ROLE_POLICY_COMMON = '''{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -67,15 +69,6 @@ ROLE_POLICY = '''{
         {
             "Effect": "Allow",
             "Action": [
-                "s3:GetObject"
-            ],
-            "Resource": [
-                "arn:aws:s3:::%s/users/*"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
                 "route53:ChangeResourceRecordSets"
             ],
             "Resource": [
@@ -92,7 +85,22 @@ ROLE_POLICY = '''{
             ]
         }
     ]
-}''' % (args.s3_bucket, args.s3_bucket, args.s3_bucket, args.zone_id)
+}''' % (args.s3_bucket, args.s3_bucket, args.zone_id)
+
+ROLE_POLICY_READUSERS = '''{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::%s/users/*"
+            ]
+        }
+    ]
+}''' % (args.s3_bucket)
 
 iam = boto3.client('iam')
 roles = iam.list_roles()
@@ -109,5 +117,11 @@ else:
 
 iam.put_role_policy(
     RoleName=args.name,
-    PolicyName=POLICY_NAME,
-    PolicyDocument=ROLE_POLICY)
+    PolicyName=POLICY_NAME_COMMON,
+    PolicyDocument=ROLE_POLICY_COMMON)
+
+if args.allow_read_users:
+    iam.put_role_policy(
+        RoleName=args.name,
+        PolicyName=POLICY_NAME_READUSERS,
+        PolicyDocument=ROLE_POLICY_READUSERS)

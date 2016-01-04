@@ -154,7 +154,10 @@ bucket :
 server_iam_role:
 ifneq ($(without_iam_roles),True)
 	python $(srcdir)/create-iam-role \
-		--name $(server_iam_role_name) --s3-bucket $(s3_bucket) --zone-id $(zone_id)
+		--name $(server_iam_role_name) \
+		--s3-bucket $(s3_bucket) \
+		--zone-id $(zone_id) \
+		--allow-read-users
 else
 	echo 'Not creating server IAM role'
 endif
@@ -182,7 +185,9 @@ endif
 expirer_iam_role:
 ifneq ($(without_iam_roles),True)
 	python $(srcdir)/create-iam-role \
-		--name $(expirer_iam_role_name) --s3-bucket $(s3_bucket) --zone-id $(zone_id)
+		--name $(expirer_iam_role_name) \
+		--s3-bucket $(s3_bucket) \
+		--zone-id $(zone_id)
 else
 	echo 'Not creating expirer IAM role'
 endif

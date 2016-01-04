@@ -124,7 +124,7 @@ with open( 'configure.in', 'w+') as f:
 	f.write( '''#!/bin/bash
 #This file was created automatically by configure
 
-cat <<EOF > Makefile
+cat <<EOF - Makefile.in > Makefile
 #This file was created automatically by configure
 
 SHELL=/bin/bash
@@ -157,9 +157,6 @@ private_key_file=%s
 chain_file=%s
 
 EOF
-
-cat Makefile.in >> Makefile
-
 '''
 		% (
 		args.prefix,
