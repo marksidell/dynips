@@ -39,8 +39,9 @@ It is possible to associate a custom domain with the service web
 address (such as "dynips.mydomain.com"). To use a custom domain,
 you must have an appropriate SSL certificate for the domain.
 
-The service is implemented with AWS Lambda Functions, the API Gateway,
-S3, and Route 53. No dedicated web server is required to run the service.
+The service is implemented in Python, using AWS Lambda Functions, the
+API Gateway, S3, and Route 53. No dedicated web server is required to
+run the service.
 
 ### Client Usage
 
