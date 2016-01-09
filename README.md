@@ -55,7 +55,7 @@ API gateway address of the form:
     12345678.execute-api.aws-region.amazonaws.com/prod/
 
 If you assign a custom domain, you would define it to be a CNAME to
-the API gateway address, and can be any name you choose. For example:
+the API gateway address. It can be any name you choose. For example:
 
     dynips.mydomain.com
 
