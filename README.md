@@ -536,8 +536,8 @@ gateway.
 
 The hostname registration web service is implemented as a lambda
 function. A API gateway attached to the function makes it possible for
-external clients to access the service via HTTPS. The service maintain
-hostname to IP mappings by updating record sets in a Route 53 zone.
+external clients to access the service via HTTPS. The service
+maintains hostname to IP mappings by updating record sets in a Route 53 zone.
 
 User credentials and hostname state information are stored in an S3
 bucket. The bucket is partitioned into *state* and *user* folders, so
@@ -585,8 +585,8 @@ hostnames that have not expired. The file contains the following JSON content:
 `<hostname>.hold`
 
 The presence of a *hold* file indicates that hostname should not be
-expired. The file contains the same content as the corresponding
-*ping* file.
+expired. The file contains the same content as the *ping* file that
+was created when the *hold* file was created.
 
 `<hostname>.expired`
 
@@ -599,18 +599,17 @@ hostname was expired.
 Each time a client performs an operation that results in an error
 (such as providing invalid credentials), the service writes an *error*
 file, where `<name>` is the client IP address. If the error
-involves a username, the server also writhes an *error *file where
+involves a username, the server also writhes an *error* file where
 `<name>` is the username. The `<count>` is an ordinal, starting with
-1, that increases each time the server writes a new error file for the
+1, that increases each time the server writes a new *error* file for the
 same IP and/or username.
 
 `<name>.lock`
 
 When the number of *error* files for a given IP or username reaches a
-fixed threshold, the server writes a *lock* file for the IP or
-username, and thereafter stops writing corresponding *error* files.
-The presences of a *lock* file causes the server to refuse acccess to
-the IP or user.
+fixed threshold, the server writes a *lock* file, and thereafter stops
+writing corresponding *error* files.  The presences of a *lock* file
+causes the server to refuse acccess to the IP or user.
 
 #### Registering a Hostname
 
