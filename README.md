@@ -506,3 +506,138 @@ to allow the AWS lambda service to assume the IAM role:
         }
       ]
     }
+
+#### AWS Items Installed
+
+The installer creates the following AWS items:
+
+- An S3 bucket, with the name specified by the configuration options.
+
+- An IAM role for the server lambda function, with the default name
+`dynips-server`.
+
+- An IAM role for the expirer lambda function, with the default name
+`dynips-server`.
+
+- A lambda function for the server, with the default name
+`dynips-server`.
+
+- A lambda function for the expirer, with the default name
+`dynips-expirer`.
+
+- An API gateway for the server, with the default name
+`dynips-server`.
+
+- An optional custom domain name for the server API
+gateway.
+
+
+### How It Works
+
+The hostname registration web service is implemented as a lambda
+function. A API gateway attached to the function makes it possible for
+external clients to access the service via HTTPS. The service maintain
+hostname to IP mappings by updating record sets in a Route 53 zone.
+
+User credentials and hostname state information are stored in an S3
+bucket. The bucket is partitioned into *state* and *user* folders, so
+that the lambda function can be granted full access to the state
+files, but read-only acccess to the user credential files.
+
+All file content is stored as JSON strings.
+
+#### User Files
+
+User files have names of the form:
+
+    <bucket>:users/<username>
+
+A user file contains the following JSON content:
+
+    {
+      "user":"<username>",
+      "keyhash":"<hash>"
+    }
+
+The `<hash>` is a PBBKDF2/SHA256 hash of the user's key. The hash
+string includes a prefix that names the hash used and the number of
+rounds. This makes it possible for implementations to change the hash
+and/or rounds while maintaining backward compatibility with existing
+keys. All of this complexity is handled automatically by the passlib
+Python package.
+
+#### State Files
+
+State files have names of the form:
+
+    <bucket>:state/<name>.<ext>
+
+A file `<name>` can be a hostname, a username, or an IP address. The
+`<ext>` specifies the file type, as follows:
+
+`<hostname>.ping`
+
+A *ping* file records the most-recent registration of a hostname, for
+hostnames that have not expired. The file contains the following JSON content:
+
+    { "ip":"<IP-address>" }
+
+`<hostname>.hold`
+
+The presence of a *hold* file indicates that hostname should not be
+expired. The file contains the same content as the corresponding
+*ping* file.
+
+`<hostname>.expired`
+
+The presence of an *expired* file indicates that a hostname has expired.
+The file contains the content of the last *ping* file before the
+hostname was expired.
+
+`<name>.error.<count>`
+
+Each time a client performs an operation that results in an error
+(such as providing invalid credentials), the service writes an *error*
+file, where `<name>` is the client IP address. If the error
+involves a username, the server also writhes an *error *file where
+`<name>` is the username. The `<count>` is an ordinal, starting with
+1, that increases each time the server writes a new error file for the
+same IP and/or username.
+
+`<name>.lock`
+
+When the number of *error* files for a given IP or username reaches a
+fixed threshold, the server writes a *lock* file for the IP or
+username, and thereafter stops writing corresponding *error* files.
+The presences of a *lock* file causes the server to refuse acccess to
+the IP or user.
+
+#### Registering a Hostname
+
+The server handles a registration request as follows:
+
+1. If the request is from a client IP for which a *lock* file exists,
+or if a *lock* file exists for the username provided by the request,
+the server refuses the request.
+
+1. The server validates the request by extracting the username prefix from
+the hostname and matching the supplied key with the hash stored in the user
+credentials file. If the request is invalid, the server creates
+*error* and/or *lock* files, as described previously.
+
+1. For valid requests, the server creates or updates a *ping* file for the requested
+hostname. If a corresponding *expired* file exists, the server deletes
+it. If the request includes the `expire=no` param, the server creates
+a *hold* file for the hostname, if one does not already exist.
+Otherwise, if a *hold* file exists, the server deletes it.
+
+1. The server updates the hostname's IP address in the Route 53 zone.
+
+#### Expiring Hostnames
+
+The expirer daemon expires hostnames by enumerating all *ping* files
+with a last-modified time older than the specified maximum age, and
+for which no *hold* file exists. For each hostname to be expired, the
+server creates an *expired* file and deletes the *ping* file. The
+expirer also sets the hostname's Route 53 IP address to the *expired* value,
+which by default is 10.10.10.10.
