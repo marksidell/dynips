@@ -426,7 +426,7 @@ dynips processes.
 
 | Rights | Server | Expirer | dynip utility
 |--------|--------|---------|------
-| Full access to S3 state files, upsert Route 53 record sets | Yes | Yes | Yes
+| Full access to S3 state files, change Route 53 record sets | Yes | Yes | Yes
 | Read-only access to S3 user files | Yes | |
 | Full access to S3 user files | | | Yes
 | Write CloudWatch logs | Yes | Yes |
@@ -434,7 +434,7 @@ dynips processes.
 Below are example policy statements for the rights described in the
 table.
 
-#### Full access to S3 state files, upsert Route 53 record sets 
+#### Full access to S3 state files, change Route 53 record sets 
 
     {
        "Version": "2012-10-17",
