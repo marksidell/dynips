@@ -151,14 +151,8 @@ for all of the options.
 You can also pass credentials to `dynip` via the optional arguments
 `--acccess-key-id`, `--secret-access-key`, and `--session-token`.
 
-`Dynip` requires that the AWS user or role used when running
-the program has the following rights: 
-
-- Read/write acess to the S3 bucket used to store dynip state:
-s3:ListBucket, s3:PutObject, s3:GetObject, and s3:DeleteObject.
-
-- The ability to change record sets in the Route 53 zone used for
-hostnames: route53:ChangeResourceRecordSets, and route53:GetChange.
+The section **IAM Roles and Policies**, later in this README, details
+the rights required to run `dynip`.
 
 #### Usage
 
@@ -419,27 +413,32 @@ After you define the CNAME, the URL clients will use to access the service is:
 
     https://dynips.mydomain.com/dynips
 
-### Lambda Function IAM Roles
+### IAM Roles and Policies
 
-The server and expirer lambda functions must be able to assume IAM roles that
-have the rights to access specific AWS services. If you let the
-installer create the IAM roles, the roles will have precisely the
-rights required for the service to work. If you wish to define the IAM
-roles yourself, below is an example policy statement showing the
-required rights:
+By default, the installer creates IAM roles with the correct rights
+for the server and expirer. To run the `dynip` command line program,
+you must arrange that an IAM user or role be in place with the
+necessary rights. Note that if you use a cron job to run the `dynip
+expire` operation, the job only needs *Expirer* rights.
+
+The following table summarizes the IAM rights required by the various
+dynips processes.
+
+| Rights | Server | Expirer | dynip utility
+|--------|--------|---------|------
+| Full access to S3 state files, upsert Route 53 record sets | Yes | Yes | Yes
+| Read-only access to S3 user files | Yes | |
+| Full access to S3 user files | | | Yes
+| Write CloudWatch logs | Yes | Yes |
+
+Below are example policy statements for the rights described in the
+table.
+
+#### Full access to S3 state files, upsert Route 53 record sets 
 
     {
        "Version": "2012-10-17",
        "Statement": [
-           {
-               "Effect": "Allow",
-               "Action": [
-                   "logs:CreateLogGroup",
-                   "logs:CreateLogStream",
-                   "logs:PutLogEvents"
-               ],
-               "Resource": "arn:aws:logs:*:*:*"
-           },
            {
                "Effect": "Allow",
                "Action": [
@@ -457,16 +456,7 @@ required rights:
                    "s3:DeleteObject"
                ],
                "Resource": [
-                   "arn:aws:s3:::%s/state/<dynips-bucket>"
-               ]
-           },
-           {
-               "Effect": "Allow",
-               "Action": [
-                   "s3:GetObject"
-               ],
-               "Resource": [
-                   "arn:aws:s3:::%s/users/<dynips-bucket>"
+                   "arn:aws:s3:::<dynips-bucket>/state/*"
                ]
            },
            {
@@ -490,8 +480,63 @@ required rights:
        ]
     }
 
-In addition, the following trust relationship must be defined,
-to allow the AWS lambda service to assume the IAM role:
+#### Read-only access to S3 user files
+
+    {
+       "Version": "2012-10-17",
+       "Statement": [
+           {
+               "Effect": "Allow",
+               "Action": [
+                   "s3:GetObject"
+               ],
+               "Resource": [
+                   "arn:aws:s3:::<dynips-bucket>/users/*"
+               ]
+           },
+       ]
+    }
+
+#### Full access to S3 user files
+
+    {
+       "Version": "2012-10-17",
+       "Statement": [
+           {
+               "Effect": "Allow",
+               "Action": [
+                   "s3:PutObject",
+                   "s3:GetObject",
+                   "s3:DeleteObject"
+               ],
+               "Resource": [
+                   "arn:aws:s3:::<dynips-bucket>/users/*"
+               ]
+           },
+       ]
+    }
+
+#### Write CloudWatch logs
+
+    {
+       "Version": "2012-10-17",
+       "Statement": [
+           {
+               "Effect": "Allow",
+               "Action": [
+                   "logs:CreateLogGroup",
+                   "logs:CreateLogStream",
+                   "logs:PutLogEvents"
+               ],
+               "Resource": "arn:aws:logs:*:*:*"
+           },
+       ]
+    }
+
+#### Lambda Function Trust Relationship
+
+In addition to the policies described above, the following trust relationship must be defined,
+to allow the AWS lambda service to assume an IAM role:
 
     {
       "Version": "2012-10-17",
@@ -619,10 +664,10 @@ The server handles a registration request as follows:
 or if a *lock* file exists for the username provided by the request,
 the server refuses the request.
 
-1. The server validates the request by extracting the username prefix from
-the hostname and matching the supplied key with the hash stored in the user
-credentials file. If the request is invalid, the server creates
-*error* and/or *lock* files, as described previously.
+1. The server validates the request by extracting the username prefix
+from the supplied hostname and matching the supplied key with the hash
+stored in the user credentials file. If the request is invalid, the
+server creates *error* and/or *lock* files, as described previously.
 
 1. For valid requests, the server creates or updates a *ping* file for the requested
 hostname. If a corresponding *expired* file exists, the server deletes
