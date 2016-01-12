@@ -22,7 +22,7 @@ web browser, or automatically using some form of cron job and tools
 like curl.
 
 Normally, the service expires hostnames that clients fail
-to update regularly. This ensures that the IP address for temporary
+to update regularly. This ensures that the IP addresses for temporary
 locations, such as coffee shops, are automatically expired.
 It is also possible for a client to *hold* a
 hostname so that it doesn't expire. Holding is useful for clients such
