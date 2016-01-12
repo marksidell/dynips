@@ -164,7 +164,7 @@ The commands are:
 
 **create**
 
-    dynip create --user=<user> [--key=<key> | --key-length-<len>]
+    dynip create --user=<user> [--key=<key> | --key-length=<len>]
 
 Create a user account. Arguments:
 
@@ -188,7 +188,7 @@ your responsibility to record any key the program generates.
 
 **edit**
 
-    dynip edit --user=<user> [--key=<key> | --key-length-<len>]
+    dynip edit --user=<user> [--key=<key> | --key-length=<len>]
 
 Edit a user account. The arguments are the same as for **create**.
 
