@@ -12,10 +12,11 @@ import re
 import pytz
 import dateutil
 import boto3
+import logging
 from passlib.context import CryptContext
 
 from dynips.params import Params
-from dynips import lib, expire
+from dynips import lib, expire, managesgs
 
 
 DEFAULT_KEY_LEN = 16
@@ -80,6 +81,12 @@ def checkUserOrIp(args, wildok):
         checkIpSyntax(args)
 
 
+def checkSGFile(args):
+    if not args.file:
+        raise RuntimeError('You must specify --file=<sg-file>')
+    return Params.SG_FILE.split( '/', 1)
+
+
 def makeUserFileBody(user, key, key_length):
     '''
     Construct the JSON body for a user file,
@@ -101,7 +108,7 @@ def makeUserFileBody(user, key, key_length):
          'keyhash': pwd_context.encrypt(key, rounds=Params.PW_HASH_ROUNDS)})
 
 
-def getUserFile(bucket, args):
+def getUserFile(session, bucket, args):
     '''
     Get the S3 ObjectSummary for a user file
     '''
@@ -114,7 +121,7 @@ def getUserFile(bucket, args):
     return file
 
 
-def lockItem(bucket, name):
+def lockItem(session, bucket, name):
     '''
     Lock a user or IP, by writing a .lock file
     '''
@@ -124,7 +131,7 @@ def lockItem(bucket, name):
         bucket.writeLockFile(name, 'Locked by admin')
 
 
-def unlockItem(bucket, name, attr):
+def unlockItem(session, bucket, name, attr):
     '''
     Unlock a user or IP, by deleting the corresponding .lock file.
     Accept wildcards.
@@ -148,12 +155,12 @@ def unlockItem(bucket, name, attr):
 
 # The do<Something> functions below implement the various dynip commands...
 
-def doExpire(bucket, args):
-    result = expire.expireHosts(bucket=bucket, max_age=args.max_age)
+def doExpire(session, bucket, args):
+    result = expire.expireHosts(session, max_age=args.max_age)
     print('Expired: {}'.format(', '.join(result) if result else 'Nothing'))
 
 
-def doCreate(bucket, args):
+def doCreate(session, bucket, args):
     checkUserArg(args)
     checkKeyArgs(args)
     checkUserSyntax(args)
@@ -166,44 +173,44 @@ def doCreate(bucket, args):
         makeUserFileBody(args.user, args.key, args.key_length))
 
 
-def doEdit(bucket, args):
+def doEdit(session, bucket, args):
     checkKeyArgs(args)
 
-    getUserFile(bucket, args).put(
+    getUserFile(session, bucket, args).put(
         Body=makeUserFileBody(args.user, args.key, args.key_length))
 
 
-def doDelete(bucket, args):
-    getUserFile(bucket, args).delete()
+def doDelete(session, bucket, args):
+    getUserFile(session, bucket, args).delete()
 
     for f in bucket.iterStateFiles(
             ext=[bucket.PING_EXT, bucket.HOLD_EXT, bucket.EXPIRED_EXT]):
 
         if f.user == args.user:
-            f.delete()
+            f.file.delete()
 
 
-def doLock(bucket, args):
+def doLock(session, bucket, args):
     checkUserOrIp(args, False)
 
     if args.user:
-        lockItem(bucket, args.user)
+        lockItem(session, bucket, args.user)
 
     if args.ip:
-        lockItem(bucket, args.ip)
+        lockItem(session, bucket, args.ip)
 
 
-def doUnlock(bucket, args):
+def doUnlock(session, bucket, args):
     checkUserOrIp(args, True)
 
     if args.user:
-        unlockItem(bucket, args.user, 'user')
+        unlockItem(session, bucket, args.user, 'user')
 
     if args.ip:
-        unlockItem(bucket, args.ip, 'ip')
+        unlockItem(session, bucket, args.ip, 'ip')
 
 
-def doList(bucket, args):
+def doList(session, bucket, args):
     HOST = 'HOST'
     IP = 'IP'
     STATE = 'STATE  '  # long enough for 'expired'
@@ -324,14 +331,35 @@ def doList(bucket, args):
     print('')
 
 
+def doManage(session, bucket, args):
+    managesgs.manageSecurityGroups(session)
+
+
+def doUpload(session, bucket, args):
+    file_parts = checkSGFile(args)
+
+    session.client('s3').upload_file(
+        args.file, file_parts[0], file_parts[1])
+
+
+def doDownload(session, bucket, args):
+    file_parts = checkSGFile(args)
+
+    session.client('s3').download_file(
+        file_parts[0], file_parts[1], args.file)
+
+
 if __name__ == '__main__':
+
+    logging.basicConfig()
+
     parser = ArgumentParser(description='Manage dynips users')
 
     parser.add_argument(
         'cmd',
         help='The operation to perform',
         choices=[
-            'create', 'edit', 'delete', 'lock', 'unlock', 'expire', 'list'])
+            'create', 'edit', 'delete', 'lock', 'unlock', 'expire', 'list', 'manage', 'upload', 'download'])
 
     parser.add_argument(
         '--user',
@@ -355,6 +383,10 @@ if __name__ == '__main__':
         '--max-age',
         help='Max age for expiry (default {} seconds)'.format(Params.MAX_AGE),
         type=int)
+
+    parser.add_argument(
+        '--file',
+        help='SG config file for upload/download')
 
     parser.add_argument(
         '--access-key-id',
@@ -384,10 +416,12 @@ if __name__ == '__main__':
                 '--acccess-key-id and --secret-asscess-key'
                 'must be specified with --session-token')
 
-        bucket = lib.S3Bucket(
-            access_key_id=args.access_key_id,
-            secret_access_key=args.secret_access_key,
-            session_token=args.session_token)
+        session = boto3.Session(
+            aws_access_key_id=args.access_key_id,
+            aws_secret_access_key=args.secret_access_key,
+            aws_session_token=args.session_token)
+
+        bucket = lib.S3Bucket(session)
 
         {   'expire': doExpire,
             'create': doCreate,
@@ -396,8 +430,12 @@ if __name__ == '__main__':
             'lock': doLock,
             'unlock': doUnlock,
             'list': doList,
-         }[args.cmd](bucket, args)
+            'manage': doManage,
+            'upload': doUpload,
+            'download': doDownload,
+         }[args.cmd](session, bucket, args)
 
     except Exception as e:
+        raise
         print( 'Error: ', str(e), file=sys.stderr)
         sys.exit(1)

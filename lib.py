@@ -46,6 +46,14 @@ def argToTuple(arg):
         return tuple(arg)
 
 
+def kickManager(session):
+    if Params.DO_SNS:
+        session.client('sns').publish(
+            TopicArn=Params.SNS_TOPIC,
+            Message='{"Event":"Change"}',
+            )
+
+
 '''
 The tuple returned by S3Bucket.iterStateFiles()
 
@@ -77,13 +85,13 @@ class S3Bucket():
     ERROR_EXT = 'error'
     LOCK_EXT = 'lock'
 
-    def __init__(
-            self,
-            access_key_id=None, secret_access_key=None, session_token=None):
-        self.session = boto3.Session(
-            aws_access_key_id=access_key_id,
-            aws_secret_access_key=secret_access_key,
-            aws_session_token=session_token)
+    def __init__(self, session=None):
+
+        if session:
+            self.session = session
+        else:
+            self.session =  boto3.Session()
+
         self.s3 = self.session.resource("s3")
         self.bucket = self.s3.Bucket(Params.S3_BUCKET)
         self.files = {f.key: f for f in self.bucket.objects.all()}

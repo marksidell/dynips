@@ -6,7 +6,7 @@ import json
 import boto3
 import socket
 from passlib.context import CryptContext
-from dynips.lib import S3Bucket, getFullHostname, getMaxErrors
+from dynips.lib import S3Bucket, getFullHostname, getMaxErrors, kickManager
 
 
 class MyException(Exception):
@@ -140,6 +140,7 @@ def lambda_handler(event, context):
                     ok, commit_result = bucket.setHostIP(host, new_ip)
 
                     if ok:
+                        kickManager(bucket.session)
                         logger.info(
                             'Route53 result: {}'.format( str(commit_result)))
                     else:

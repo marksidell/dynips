@@ -3,7 +3,7 @@ import boto3
 import lib
 
 
-def expireHosts(bucket=None, max_age=None):
+def expireHosts(session=None, max_age=None):
     '''
     Expire all hostnames that have not been updated
     more recently than max_age seconds ago, and that
@@ -15,8 +15,7 @@ def expireHosts(bucket=None, max_age=None):
     delete the PING file and replace it with an
     EXPIRED file.
     '''
-    if bucket is None:
-        bucket = lib.S3Bucket()
+    bucket = lib.S3Bucket(session)
 
     holds = set(f.host for f in bucket.iterStateFiles(ext=bucket.HOLD_EXT))
     expiry_time = lib.getExpiryTime(max_age)
@@ -30,5 +29,8 @@ def expireHosts(bucket=None, max_age=None):
             f.host, bucket.EXPIRED_EXT, f.file.get()['Body'].read())
         f.file.delete()
         expired.append(f.host)
+
+    if expired:
+        lib.kickManager(bucket.session)
 
     return expired

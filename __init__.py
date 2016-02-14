@@ -1,3 +1,3 @@
 # dynips package
 
-__all__ = ['lib','expire']
+__all__ = ['lib','expire','managesgs']

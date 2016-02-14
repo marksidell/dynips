@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+# Create an SNS topic.
+# Return the topic's ARN.
+
+# This script is idempotent.
+
+import boto3
+import sys
+from argparse import ArgumentParser
+
+parser = ArgumentParser(
+    description='Create an SNS topic')
+
+parser.add_argument('--name', required=True)
+
+args = parser.parse_args()
+
+sns = boto3.client('sns')
+
+arn = next((t['TopicArn'] for t in sns.list_topics()['Topics']
+					if t['TopicArn'].rsplit(':', 1)[0]==args.name),
+				None)
+
+if not arn:
+	arn = sns.create_topic( Name=args.name)['TopicArn']
+
+sys.stdout.write(arn)

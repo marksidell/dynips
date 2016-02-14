@@ -61,12 +61,21 @@ parser.add_argument(
    default='dynips-expirer')
 
 parser.add_argument(
+    '--manager-lambda-name',
+    help='Name of the SG manager lambda (default dynips-manager)',
+   default='dynips-manager')
+
+parser.add_argument(
     '--server-iam-role',
     help='Name of the server IAM role (default lambda-name)')
 
 parser.add_argument(
     '--expirer-iam-role',
     help='Name of the expirer IAM role (default lambda-name)')
+
+parser.add_argument(
+    '--manager-iam-role',
+    help='Name of the SG manager IAM role (default lambda-name)')
 
 parser.add_argument(
     '--prefix',
@@ -90,6 +99,11 @@ parser.add_argument(
 parser.add_argument(
     '--without-expirer-lambda',
     help='Do not install the expirer lambda',
+   action='store_true')
+
+parser.add_argument(
+    '--without-manager-lambda',
+    help='Do not install the manager lambda',
    action='store_true')
 
 parser.add_argument(
@@ -118,6 +132,14 @@ parser.add_argument(
     '--chain-file',
     help='Path to TLS chain file')
 
+parser.add_argument(
+    '--sg-file',
+    help='Path to Security Group config file (default <s3-bucket>/sg/config.json)')
+
+parser.add_argument(
+    '--sns-topic',
+    help='The name of the SNS topic used to kick the manager lambda (default dynips-update)')
+
 args= parser.parse_args()
 
 with open( 'configure.in', 'w+') as f:
@@ -143,11 +165,14 @@ max_errors=%d
 pw_hash_rounds=%d
 server_lambda_name=%s
 expirer_lambda_name=%s
+manager_lambda_name=%s
 server_iam_role_name=%s
 expirer_iam_role_name=%s
+manager_iam_role_name=%s
 
 without_bin=%s
 without_expirer_lambda=%s
+without_manager_lambda=%s
 without_iam_roles=%s
 
 with_server_domain_name=%s
@@ -155,6 +180,10 @@ server_domain_name=%s
 certificate_file=%s
 private_key_file=%s
 chain_file=%s
+
+sg_file=%s
+sns_topic=%s
+do_sns=%s
 
 EOF
 '''
@@ -172,16 +201,23 @@ EOF
                 args.pw_hash_rounds,
                 args.server_lambda_name if args.server_lambda_name else 'dynips-server',
                 args.expirer_lambda_name if args.expirer_lambda_name else 'dynips-expirer',
+                args.manager_lambda_name if args.manager_lambda_name else 'dynips-manager',
                 args.server_iam_role if args.server_iam_role else args.server_lambda_name,
                 args.expirer_iam_role if args.expirer_iam_role else args.expirer_lambda_name,
+                args.manager_iam_role if args.manager_iam_role else args.manager_lambda_name,
                 'True' if args.without_bin else 'False',
 		'True' if args.without_expirer_lambda else 'False',
+		'True' if args.without_manager_lambda else 'False',
 		'True' if args.without_iam_roles else 'False',
 		'True' if args.with_server_domain_name else 'False',
                 args.server_domain_name,
                 args.certificate_file,
                 args.private_key_file,
-                args.chain_file))
+                args.chain_file,
+                args.sg_file if args.sg_file else '{}/sg/config.json'.format(args.s3_bucket),
+                args.sns_topic if args.sns_topic else 'dynips-udpate',
+                'True' if not args.without_manager_lambda else 'False',
+            ))
 
 os.chmod( 'configure.in', 0755)
 

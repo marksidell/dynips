@@ -8,5 +8,9 @@ server.zip
 server/
 expirer.zip
 expirer/
+manager.zip
+manager/
 server_api.txt
 setup.py
+MANIFEST
+dist/

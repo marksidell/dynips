@@ -16,6 +16,7 @@ parser = ArgumentParser(
 parser.add_argument('--code-file', required=True)
 parser.add_argument('--name', required=True)
 parser.add_argument('--iam-role-name', required=True)
+parser.add_argument('--sns-arn')
 
 args = parser.parse_args()
 
@@ -52,20 +53,20 @@ if next(
 
     print( 'Updating existing lambda {}...'.format( lambda_name))
 
-    client.update_function_configuration(
+    lambda_arn = client.update_function_configuration(
         FunctionName=lambda_name,
         Role=role_arn,
         Handler='lambda.lambda_handler',
         Description=description,
         Timeout=LAMBDA_TIMEOUT,
-        MemorySize=LAMBDA_MEMORY_SIZE)
+        MemorySize=LAMBDA_MEMORY_SIZE)['FunctionArn']
 
     client.update_function_code(FunctionName=lambda_name, ZipFile=code)
 
 else:
     print( 'Creating new lambda {}...'.format( lambda_name))
 
-    client.create_function(
+    lambda_arn = client.create_function(
         FunctionName=lambda_name,
         Runtime=LAMBDA_RUNTIME,
         Role=role_arn,
@@ -73,4 +74,11 @@ else:
         Code={'ZipFile': code},
         Description=description,
         Timeout=LAMBDA_TIMEOUT,
-        MemorySize=LAMBDA_MEMORY_SIZE)
+        MemorySize=LAMBDA_MEMORY_SIZE)['FunctionArn']
+
+if args.sns_arn:
+    # Happily, subscribe() is idempotent
+    boto3.client('sns').subscribe(
+        TopicArn=args.sns_arn,
+        Protocol='lambda',
+        Endpoint=lambda_arn)

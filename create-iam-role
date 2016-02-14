@@ -11,13 +11,12 @@ parser = ArgumentParser(
 
 parser.add_argument('--name', required=True)
 parser.add_argument('--s3-bucket', required=True)
+parser.add_argument('--sg-file', required=True)
 parser.add_argument('--zone-id', required=True)
-parser.add_argument('--allow-read-users', action='store_true')
+parser.add_argument('--role', required=True)
+parser.add_argument('--sns-arn')
 
 args = parser.parse_args()
-
-POLICY_NAME_COMMON = 'Dynips_common'
-POLICY_NAME_READUSERS = 'Dynips_read_users'
 
 
 #======================================================================
@@ -40,12 +39,12 @@ ASSUME_ROLE_POLICY = '''{
 
 
 #======================================================================
-# The policy that is common to both the server and the expirer.
-# Allows read/write access to the S3 state files.
-# Allows changing resorce record sets for the Route 53 zone used for
-# hostnames.
+# The policy that is common to all lambdas.
+# Allows:
+#   Logging
+#   Listing contents of the S3 bucket.
 #
-ROLE_POLICY_COMMON = '''{
+ROLE_POLICY_ALL = ('Dynips_all', '''{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -56,7 +55,20 @@ ROLE_POLICY_COMMON = '''{
                 "logs:PutLogEvents"
             ],
             "Resource": "arn:aws:logs:*:*:*"
-        },
+        }
+    ]
+}''')
+
+
+#======================================================================
+# The policy that is common to the server and expirer.
+# Allows:
+#   Read/write access to the S3 state files.
+#   Changing resorce record sets for the Route 53 zone used for hostnames.
+#
+ROLE_POLICY_SERVER_EXPIRER = ('Dynips_server_expirer', '''{
+    "Version": "2012-10-17",
+    "Statement": [
         {
             "Effect": "Allow",
             "Action": [
@@ -96,14 +108,15 @@ ROLE_POLICY_COMMON = '''{
             ]
         }
     ]
-}''' % (args.s3_bucket, args.s3_bucket, args.zone_id)
+}''' % (args.s3_bucket, args.s3_bucket, args.zone_id))
 
 
 #======================================================================
 # An additional policy just for the server.
-# Allow read-only access to the S3 user credential files.
+# Allows:
+#   Read-only access to the S3 user credential files.
 #
-ROLE_POLICY_READUSERS = '''{
+ROLE_POLICY_SERVER = ('Dynips_server', '''{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -116,9 +129,86 @@ ROLE_POLICY_READUSERS = '''{
             ]
         }
     ]
-}''' % (args.s3_bucket)
+}''' % (args.s3_bucket))
 
 
+#======================================================================
+# An additional policy just for the manager.
+# Allows:
+#   Read-only access to the S3 security groups config file.
+#   Read-only access to the Route 53 resource records.
+#   Full access to EC2 security groups.
+#
+ROLE_POLICY_MANAGER = ('Dynips_manager', '''{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::%s"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "route53:ListResourceRecordSets"
+            ],
+            "Resource": [
+                "arn:aws:route53:::hostedzone/%s"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:AuthorizeSecurityGroupEgress",
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:DescribeSecurityGroups",
+                "ec2:RevokeSecurityGroupEgress",
+                "ec2:RevokeSecurityGroupIngress"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}''' % (args.sg_file, args.zone_id))
+
+
+#======================================================================
+# An additional policy just for the the server and the expirer
+# to allow them to publish SNS messages to kick the manager
+# after an update.
+#
+ROLE_POLICY_PUBLISH_SNS = ('Dynips_publish_sns', '''{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "SNS:Publish"
+            ],
+            "Resource": [
+                "%s"
+            ]
+        }
+    ]
+}''' % (args.sns_arn if args.sns_arn else 'none'))
+
+
+#======================================================================
+#
+policy_map = {
+    'server' :  [ROLE_POLICY_ALL, ROLE_POLICY_SERVER_EXPIRER, ROLE_POLICY_SERVER ],
+    'expirer' : [ROLE_POLICY_ALL, ROLE_POLICY_SERVER_EXPIRER ],
+    'manager' : [ROLE_POLICY_ALL, ROLE_POLICY_MANAGER ],
+    }
+
+
+#======================================================================
+#
 iam = boto3.client('iam')
 roles = iam.list_roles()
 
@@ -132,13 +222,19 @@ else:
     iam.create_role(
         RoleName=args.name, AssumeRolePolicyDocument=ASSUME_ROLE_POLICY)
 
-iam.put_role_policy(
-    RoleName=args.name,
-    PolicyName=POLICY_NAME_COMMON,
-    PolicyDocument=ROLE_POLICY_COMMON)
-
-if args.allow_read_users:
+for n, p in policy_map[args.role]:
+    print( 'Defining policy {}'.format(n))
     iam.put_role_policy(
         RoleName=args.name,
-        PolicyName=POLICY_NAME_READUSERS,
-        PolicyDocument=ROLE_POLICY_READUSERS)
+        PolicyName=n,
+        PolicyDocument=p)
+
+if args.sns_arn:
+    n = ROLE_POLICY_PUBLISH_SNS[0]
+    p = ROLE_POLICY_PUBLISH_SNS[1]
+
+    print( 'Defining policy {}'.format(n))
+    iam.put_role_policy(
+        RoleName=args.name,
+        PolicyName=n,
+        PolicyDocument=p)

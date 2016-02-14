@@ -1,6 +1,6 @@
 DYNIPS_VERSION=1.0.0
 
-LIB_FILES=dynips/params.py dynips/lib.py dynips/expire.py dynips/__init__.py
+LIB_FILES=dynips/params.py dynips/lib.py dynips/expire.py dynips/managesgs.py dynips/__init__.py
 PACKAGE_FILE=dist/dynips-$(DYNIPS_VERSION).tar.gz
 
 
@@ -17,6 +17,8 @@ class Params:
     MAX_AGE         = $(max_age)
     MAX_ERRORS      = $(max_errors)
     PW_HASH_ROUNDS  = $(pw_hash_rounds)
+    SG_FILE         = "$(sg_file)"
+    DO_SNS          = $(do_sns)
 endef
 
 #======================================================================
@@ -36,10 +38,10 @@ endef
 #======================================================================
 
 .PHONY : all
-all: server.zip expirer.zip $(PACKAGE_FILE)
+all: server.zip expirer.zip manager.zip $(PACKAGE_FILE)
 
 .PHONY : install
-install : install_binfiles server_api expirer_lambda
+install : install_binfiles server_api expirer_lambda manager_lambda
 
 .PHONY : clean
 clean :
@@ -65,6 +67,9 @@ dynips :
 export PARAMS_PY
 dynips/params.py : Makefile dynips
 	echo "$$PARAMS_PY" > $@
+ifeq ($(do_sns),True)
+	echo "    SNS_ARN         = \"$$(python $(srcdir)/create-sns-topic --name $(sns_topic)\"" >> $@
+endif
 
 dynips/lib.py : dynips $(srcdir)/lib.py
 	cp $(srcdir)/lib.py dynips
@@ -75,6 +80,11 @@ dynips/expire.py : dynips $(srcdir)/expire.py
 	cp $(srcdir)/expire.py dynips
 	chown 0:0 dynips/expire.py
 	chmod 755 dynips/expire.py
+
+dynips/managesgs.py : dynips $(srcdir)/managesgs.py
+	cp $(srcdir)/managesgs.py dynips
+	chown 0:0 dynips/managesgs.py
+	chmod 755 dynips/managesgs.py
 
 dynips/__init__.py : dynips $(srcdir)/__init__.py
 	cp $(srcdir)/__init__.py dynips
@@ -134,6 +144,26 @@ expirer/lambda.py : expirer $(srcdir)/expirer_lambda.py
 expirer.zip : expirer/lambda.py expirer/dynips expirer/passlib expirer/pytz $(LIB_FILES) passlib pytz
 	[ -f expirer.zip ] && rm expirer.zip; cd expirer; zip -qr ../expirer.zip *
 
+manager :
+	mkdir -p manager
+
+manager/dynips : manager
+	ln -sfT ../dynips manager/dynips
+
+manager/passlib : manager
+	ln -sfT ../passlib manager/passlib
+
+manager/pytz : manager
+	ln -sfT ../pytz manager/pytz
+
+manager/lambda.py : manager $(srcdir)/manager_lambda.py
+	cp $(srcdir)/manager_lambda.py manager/lambda.py
+	chown 0:0 manager/lambda.py
+	chmod 755 manager/lambda.py
+
+manager.zip : manager/lambda.py manager/dynips manager/passlib manager/pytz $(LIB_FILES) passlib pytz
+	[ -f manager.zip ] && rm manager.zip; cd manager; zip -qr ../manager.zip *
+
 .PHONY : install_binfiles
 install_binfiles : $(srcdir)/dynip setup.py $(LIB_FILES)
 ifeq ($(without_bin),True)
@@ -153,11 +183,22 @@ bucket :
 .PHONY : server_iam_role
 server_iam_role:
 ifneq ($(without_iam_roles),True)
+ifeq ($(do_sns),True)
 	python $(srcdir)/create-iam-role \
 		--name $(server_iam_role_name) \
 		--s3-bucket $(s3_bucket) \
 		--zone-id $(zone_id) \
-		--allow-read-users
+		--sg-file $(sg_file) \
+		--role server \
+		--sns-arn $$(python $(srcdir)/create-sns-topic --name $(sns_topic)
+else
+	python $(srcdir)/create-iam-role \
+		--name $(server_iam_role_name) \
+		--s3-bucket $(s3_bucket) \
+		--zone-id $(zone_id) \
+		--sg-file $(sg_file) \
+		--role=server
+endif
 else
 	echo 'Not creating server IAM role'
 endif
@@ -184,10 +225,22 @@ endif
 .PHONY : expirer_iam_role
 expirer_iam_role:
 ifneq ($(without_iam_roles),True)
+ifeq ($(do_sns),True)
 	python $(srcdir)/create-iam-role \
 		--name $(expirer_iam_role_name) \
 		--s3-bucket $(s3_bucket) \
-		--zone-id $(zone_id)
+		--zone-id $(zone_id) \
+		--sg-file $(sg_file) \
+		--role expirer \
+		--sns-arn $$(python $(srcdir)/create-sns-topic --name $(sns_topic)
+else
+	python $(srcdir)/create-iam-role \
+		--name $(expirer_iam_role_name) \
+		--s3-bucket $(s3_bucket) \
+		--zone-id $(zone_id) \
+		--sg-file $(sg_file) \
+		--role expirer
+endif
 else
 	echo 'Not creating expirer IAM role'
 endif
@@ -202,4 +255,30 @@ expirer_lambda : expirer.zip bucket expirer_iam_role
 		--code-file expirer.zip \
 		--name $(expirer_lambda_name) \
 		--iam-role-name $(expirer_iam_role_name)
+endif
+
+.PHONY : manager_iam_role
+manager_iam_role:
+ifneq ($(without_iam_roles),True)
+	python $(srcdir)/create-iam-role \
+		--name $(manager_iam_role_name) \
+		--s3-bucket $(s3_bucket) \
+		--zone-id $(zone_id) \
+		--sg-file $(sg_file) \
+		--role=manager
+else
+	echo 'Not creating manager IAM role'
+endif
+
+.PHONY : manager_lambda
+ifeq ($(without_manager_lambda),True)
+manager_lambda :
+	echo 'Not installing manager lambda'
+else
+manager_lambda : manager.zip bucket manager_iam_role
+	python $(srcdir)/create-lambda \
+		--code-file manager.zip \
+		--name $(manager_lambda_name) \
+		--iam-role-name $(manager_iam_role_name) \
+		--sns-arn $$(python $(srcdir)/create-sns-topic --name $(sns_topic)
 endif
