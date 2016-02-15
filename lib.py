@@ -49,7 +49,7 @@ def argToTuple(arg):
 def kickManager(session):
     if Params.DO_SNS:
         session.client('sns').publish(
-            TopicArn=Params.SNS_TOPIC,
+            TopicArn=Params.SNS_ARN,
             Message='{"Event":"Change"}',
             )
 
