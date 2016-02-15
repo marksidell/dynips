@@ -14,3 +14,4 @@ server_api.txt
 setup.py
 MANIFEST
 dist/
+sns_arn.txt

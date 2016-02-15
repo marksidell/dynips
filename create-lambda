@@ -76,9 +76,17 @@ else:
         Timeout=LAMBDA_TIMEOUT,
         MemorySize=LAMBDA_MEMORY_SIZE)['FunctionArn']
 
-if args.sns_arn:
-    # Happily, subscribe() is idempotent
-    boto3.client('sns').subscribe(
-        TopicArn=args.sns_arn,
-        Protocol='lambda',
-        Endpoint=lambda_arn)
+if args.sns_arn and args.sns_arn != 'none':
+    sns = boto3.client('sns');
+
+    subscriptions = sns.list_subscriptions_by_topic(
+        TopicArn=args.sns_arn)['Subscriptions']
+
+    if next((s for s in subscriptions if s['Endpoint']==lambda_arn), None):
+        print('SNS subscritption already exists.')
+    else:
+        print( 'Creating subscription {} -> {}'.format(args.sns_arn, lambda_arn))
+        sns.subscribe(
+            TopicArn=args.sns_arn,
+            Protocol='lambda',
+            Endpoint=lambda_arn)

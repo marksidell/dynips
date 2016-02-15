@@ -60,15 +60,26 @@ clean :
 	-rm -fr dist
 	-rm -f MANIFEST
 	-rm -f server_api.txt
+	-rm -f sns_arn.txt
 
 dynips :
 	mkdir -p dynips
 
+
+.PHONY : sns_arn
+sns_arn:
+ifeq ($(do_sns),True)
+	python $(srcdir)/create-sns-topic --name $(sns_topic) > sns_arn.txt
+else
+	echo 'none' > sns_arn.txt
+endif
+
+
 export PARAMS_PY
-dynips/params.py : Makefile dynips
+dynips/params.py : Makefile dynips sns_arn
 	echo "$$PARAMS_PY" > $@
 ifeq ($(do_sns),True)
-	echo "    SNS_ARN         = \"$$(python $(srcdir)/create-sns-topic --name $(sns_topic)\"" >> $@
+	echo "    SNS_ARN         = \"$$(cat sns_arn.txt)\"" >> $@
 endif
 
 dynips/lib.py : dynips $(srcdir)/lib.py
@@ -181,24 +192,15 @@ bucket :
 	python $(srcdir)/create-bucket --s3-bucket $(s3_bucket)
 
 .PHONY : server_iam_role
-server_iam_role:
+server_iam_role: sns_arn
 ifneq ($(without_iam_roles),True)
-ifeq ($(do_sns),True)
 	python $(srcdir)/create-iam-role \
 		--name $(server_iam_role_name) \
 		--s3-bucket $(s3_bucket) \
 		--zone-id $(zone_id) \
 		--sg-file $(sg_file) \
 		--role server \
-		--sns-arn $$(python $(srcdir)/create-sns-topic --name $(sns_topic)
-else
-	python $(srcdir)/create-iam-role \
-		--name $(server_iam_role_name) \
-		--s3-bucket $(s3_bucket) \
-		--zone-id $(zone_id) \
-		--sg-file $(sg_file) \
-		--role=server
-endif
+		--sns-arn $$(cat sns_arn.txt)
 else
 	echo 'Not creating server IAM role'
 endif
@@ -223,24 +225,15 @@ ifeq ($(with_server_domain_name),True)
 endif
 
 .PHONY : expirer_iam_role
-expirer_iam_role:
+expirer_iam_role: sns_arn
 ifneq ($(without_iam_roles),True)
-ifeq ($(do_sns),True)
 	python $(srcdir)/create-iam-role \
 		--name $(expirer_iam_role_name) \
 		--s3-bucket $(s3_bucket) \
 		--zone-id $(zone_id) \
 		--sg-file $(sg_file) \
 		--role expirer \
-		--sns-arn $$(python $(srcdir)/create-sns-topic --name $(sns_topic)
-else
-	python $(srcdir)/create-iam-role \
-		--name $(expirer_iam_role_name) \
-		--s3-bucket $(s3_bucket) \
-		--zone-id $(zone_id) \
-		--sg-file $(sg_file) \
-		--role expirer
-endif
+		--sns-arn $$(cat sns_arn.txt)
 else
 	echo 'Not creating expirer IAM role'
 endif
@@ -265,7 +258,7 @@ ifneq ($(without_iam_roles),True)
 		--s3-bucket $(s3_bucket) \
 		--zone-id $(zone_id) \
 		--sg-file $(sg_file) \
-		--role=manager
+		--role manager
 else
 	echo 'Not creating manager IAM role'
 endif
@@ -275,10 +268,10 @@ ifeq ($(without_manager_lambda),True)
 manager_lambda :
 	echo 'Not installing manager lambda'
 else
-manager_lambda : manager.zip bucket manager_iam_role
+manager_lambda : manager.zip bucket manager_iam_role sns_arn
 	python $(srcdir)/create-lambda \
 		--code-file manager.zip \
 		--name $(manager_lambda_name) \
 		--iam-role-name $(manager_iam_role_name) \
-		--sns-arn $$(python $(srcdir)/create-sns-topic --name $(sns_topic)
+		--sns-arn $$(cat sns_arn.txt)
 endif

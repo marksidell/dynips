@@ -229,7 +229,7 @@ for n, p in policy_map[args.role]:
         PolicyName=n,
         PolicyDocument=p)
 
-if args.sns_arn:
+if args.sns_arn and args.sns_arn != 'none':
     n = ROLE_POLICY_PUBLISH_SNS[0]
     p = ROLE_POLICY_PUBLISH_SNS[1]
 
