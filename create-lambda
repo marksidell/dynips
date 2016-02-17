@@ -5,6 +5,7 @@
 
 import boto3
 import uuid
+import json
 from argparse import ArgumentParser
 
 LAMBDA_TIMEOUT = 3
@@ -92,10 +93,23 @@ if args.sns_arn and args.sns_arn != 'none':
             Protocol='lambda',
             Endpoint=lambda_arn)
 
-    client.add_permission(
-        FunctionName=args.name,
-        StatementId=str(uuid.uuid4()),
-        Principal='sns.amazonaws.com',
-        Action='lambda:InvokeFunction',
-        SourceArn=args.sns_arn,
-    )
+    try:
+        policy = json.loads(client.get_policy(FunctionName=args.name)['Policy'])
+        if next((p for p in policy['Statement']
+                    if p['Action']=='lambda:InvokeFunction' and
+                        p.get('Principal',{}).get('Service','')=='sns.amazonaws.com'),
+                None):
+            have_permission = True
+
+    except:
+        have_permission = False
+
+    if not have_permission:
+        print('Adding sns permission')
+        client.add_permission(
+            FunctionName=args.name,
+            StatementId=str(uuid.uuid4()),
+            Principal='sns.amazonaws.com',
+            Action='lambda:InvokeFunction',
+            SourceArn=args.sns_arn,
+        )
