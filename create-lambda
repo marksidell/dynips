@@ -4,6 +4,7 @@
 # This script is idempotent.
 
 import boto3
+import uuid
 from argparse import ArgumentParser
 
 LAMBDA_TIMEOUT = 3
@@ -90,3 +91,11 @@ if args.sns_arn and args.sns_arn != 'none':
             TopicArn=args.sns_arn,
             Protocol='lambda',
             Endpoint=lambda_arn)
+
+    client.add_permission(
+        FunctionName=args.name,
+        StatementId=str(uuid.uuid4()),
+        Principal='sns.amazonaws.com',
+        Action='lambda:InvokeFunction',
+        SourceArn=args.sns_arn,
+    )
