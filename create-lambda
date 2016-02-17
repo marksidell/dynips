@@ -6,6 +6,7 @@
 import boto3
 import uuid
 import json
+import time
 from argparse import ArgumentParser
 
 LAMBDA_TIMEOUT = 3
@@ -33,6 +34,8 @@ role_arn = role['Role']['Arn']
 if not role_arn:
     raise RuntimeError(
         'Unable to find IAM role {}'.format(args.iam_role_name))
+
+print('Role ARN: {}'.format(role_arn))
 
 
 #======================================================================
@@ -67,6 +70,14 @@ if next(
 
 else:
     print( 'Creating new lambda {}...'.format( lambda_name))
+
+    # If we try to create the function too soon after creating its
+    # IAM role, this will fail with 'The role defined for the
+    # function cannot be assumed by Lambda'.
+    # So, sleep a bit
+    #
+    print('Waiting 30 seconds for the IAM role to propagate')
+    time.sleep(30)
 
     lambda_arn = client.create_function(
         FunctionName=lambda_name,
