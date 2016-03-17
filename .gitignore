@@ -15,3 +15,4 @@ setup.py
 MANIFEST
 dist/
 sns_arn.txt
+cname.txt

@@ -221,7 +221,8 @@ ifeq ($(with_server_domain_name),True)
 		--domain-name $(server_domain_name) \
 		--certificate-file $(certificate_file) \
 		--private-key-file $(private_key_file) \
-		--chain-file $(chain_file)
+		--chain-file $(chain_file) \
+		--set-cname $(set_cname)
 endif
 
 .PHONY : expirer_iam_role

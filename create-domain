@@ -4,6 +4,8 @@
 # an existing custom domain.
 # This script is idempotent.
 
+from __future__ import print_function
+
 import boto3
 import sys
 from argparse import ArgumentParser
@@ -19,8 +21,8 @@ def readFile(file):
         content = boto3.client('s3').get_object(
             Bucket=parts[2],
             Key='/'.join(parts[3:]))['Body'].read()
-        print file
-        print content
+#        print(file)
+#        print(content)
         return content
 
     else:
@@ -37,6 +39,7 @@ parser.add_argument("--domain-name", required=True)
 parser.add_argument("--certificate-file", required=True)
 parser.add_argument("--private-key-file", required=True)
 parser.add_argument("--chain-file", required=True)
+parser.add_argument("--set-cname", type=bool)
 
 args = parser.parse_args()
 
@@ -66,21 +69,21 @@ if 'items' in domains and \
     next((x for x in domains['items']
           if x['domainName'] == args.domain_name), None):
 
-    client.update_domain_name(
+    result = client.update_domain_name(
         domainName=args.domain_name,
         patchOperations=[
             {"op": "replace",
                 "path": "/certificateBody",
-                "value": open(args.certificate_file).read()},
+                "value": readFile(args.certificate_file)},
             {"op": "replace",
                 "path": "/certificatePrivateKey",
-                "value": open(args.private_key_file).read()},
+                "value": readFile(args.private_key_file)},
             {"op": "replace",
                 "path": "/certificateChain",
-                "value": open(args.chain_file).read()},
+                "value": readFile(args.chain_file)},
         ])
 else:
-    client.create_domain_name(
+    result = client.create_domain_name(
         domainName=args.domain_name,
         certificateName=CERTIFICATE_NAME,
         certificateBody=readFile(args.certificate_file),
@@ -88,6 +91,46 @@ else:
         certificateChain=readFile(args.chain_file),
         )
 
+cname = result['distributionDomainName']
+
+with open('cname.txt', 'wt') as f:
+    print( 'DOMAINNAME: ', args.domain_name, file=f)
+    print( 'CNAME: ', cname, file=f)
+
+print('{} CNAME {}'.format(args.domain_name, cname))
+
+#======================================================================
+# Define a CNAME from the domain name to the cloudfront domain name.
+#
+if args.set_cname:
+    r53 = boto3.client('route53')
+    zone_id = next(
+        (zone['Id']
+            for zone in r53.list_hosted_zones()['HostedZones']
+            if zone['Name'] == '.'.join(args.domain_name.split('.')[-2:])+'.'),
+        None)
+
+    if not zone_id:
+        raise Exception('Unable to find hosted zone for {}'.format(args.domain_name))
+
+    r53.change_resource_record_sets(
+        HostedZoneId=zone_id,
+        ChangeBatch={
+            'Changes':[
+                {
+                    'Action': 'UPSERT',
+                    'ResourceRecordSet':
+                    {
+                        'Name': args.domain_name,
+                        'Type': 'CNAME',
+                        'TTL': 300,
+                        'ResourceRecords': [{'Value': cname }]
+                    }
+                }
+            ]
+        })
+
+  
 
 #======================================================================
 # Create a mapping from the domain name to the API, for the 'prod'

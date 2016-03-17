@@ -132,6 +132,11 @@ parser.add_argument(
     help='Path to TLS chain file')
 
 parser.add_argument(
+    '--set-cname',
+    help='Set the domain name CNAME in route 53',
+   action='store_true')
+
+parser.add_argument(
     '--sg-file',
     help='Path to Security Group config file (default <s3-bucket>/sg/config.json)')
 
@@ -181,6 +186,7 @@ server_domain_name=%s
 certificate_file=%s
 private_key_file=%s
 chain_file=%s
+set_cname=%s
 
 sg_file=%s
 sns_topic=%s
@@ -215,6 +221,7 @@ EOF
                 args.certificate_file,
                 args.private_key_file,
                 args.chain_file,
+                'True' if args.set_cname else 'False',
                 args.sg_file if args.sg_file else '{}/sg/config.json'.format(args.s3_bucket),
                 args.sns_topic if args.sns_topic else 'dynips-udpate',
                 'True' if not args.without_manager_lambda else 'False',
