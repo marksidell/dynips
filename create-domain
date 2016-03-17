@@ -10,6 +10,25 @@ from argparse import ArgumentParser
 
 CERTIFICATE_NAME = 'DynipsTSLCertificate'
 
+#======================================================================
+# Read the contents of a file, either locally or from S3
+#
+def readFile(file):
+    if file[:5] == 's3://':
+        parts = file.split('/')
+        content = boto3.client('s3').get_object(
+            Bucket=parts[2],
+            Key='/'.join(parts[3:]))['Body'].read()
+        print file
+        print content
+        return content
+
+    else:
+        return open(file).read()
+
+
+#======================================================================
+
 parser = ArgumentParser(
     description="Create a custom domain name for a lambda function")
 
@@ -64,9 +83,10 @@ else:
     client.create_domain_name(
         domainName=args.domain_name,
         certificateName=CERTIFICATE_NAME,
-        certificateBody=open(args.certificate_file).read(),
-        certificatePrivateKey=open(args.private_key_file).read(),
-        certificateChain=open(args.chain_file).read())
+        certificateBody=readFile(args.certificate_file),
+        certificatePrivateKey=readFile(args.private_key_file),
+        certificateChain=readFile(args.chain_file),
+        )
 
 
 #======================================================================

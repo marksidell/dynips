@@ -1,0 +1,26 @@
+#!/usr/bin/python
+
+# Given a hostname, return its route3 zone ID via stdout.
+# The function takes any name, such as foo.bar.mydomain.com.
+
+import boto3
+import sys
+from argparse import ArgumentParser
+
+parser = ArgumentParser(
+    description='Create an IAM role for a lambda function')
+
+parser.add_argument('name')
+args = parser.parse_args()
+
+id = next(
+    (zone['Id']
+        for zone in boto3.client('route53').list_hosted_zones()['HostedZones']
+        if zone['Name'] == '.'.join(args.name.split('.')[-2:])+'.'),
+    None)
+
+if not id:
+    raise Exception('Unable to find hosted zone for {}'.format(args.name))
+
+# The Id string is '/hostedzone/<id>'
+sys.stdout.write(id.split('/')[-1])

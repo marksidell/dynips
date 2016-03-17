@@ -7,11 +7,6 @@ import subprocess
 parser = ArgumentParser( description='Configure the package')
 
 parser.add_argument(
-    '--zone-id',
-    help='[REQUIRED] Root 53 zone id',
-   required=True)
-
-parser.add_argument(
     '--domain-root',
     help='[REQUIRED] Root domain name (e.g. ips.example.com)',
    required=True)
@@ -20,6 +15,10 @@ parser.add_argument(
     '--s3-bucket',
     help='[REQUIRED] S3 bucket for runtime files',
    required=True)
+
+parser.add_argument(
+    '--zone-id',
+    help='Root 53 zone id')
 
 parser.add_argument(
     '--default-ip',
@@ -142,11 +141,13 @@ parser.add_argument(
 
 args= parser.parse_args()
 
+zone_id = args.zone_id if args.zone_id else '$(shell $(srcdir)/get-zoneid {})'.format(args.domain_root)
+
 with open( 'configure.in', 'w+') as f:
 	f.write( '''#!/bin/bash
 #This file was created automatically by configure
 
-cat <<EOF - Makefile.in > Makefile
+cat <<'EOF' - Makefile.in > Makefile
 #This file was created automatically by configure
 
 SHELL=/bin/bash
@@ -189,10 +190,10 @@ EOF
 '''
 		% (
 		args.prefix,
-		args.bindir if args.bindir else '\$(prefix)/bin',
+		args.bindir if args.bindir else '$(prefix)/bin',
 		args.srcdir,
 		args.domain_root,
-		args.zone_id,
+		zone_id,
                 args.s3_bucket,
                 args.default_ip,
 		args.ttl,
